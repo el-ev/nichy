@@ -36,20 +36,6 @@
 
 body { min-height: 100vh; }
 .container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
-header { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
-h1 { font-size: 1.4rem; color: var(--accent); }
-h1 span { color: var(--dim); font-weight: normal; font-size: .85rem; }
-.header-controls { display: flex; gap: .8rem; align-items: center; flex-shrink: 0; }
-.header-nav { display: flex; gap: .8rem; }
-.header-nav a { color: var(--dim); text-decoration: none; font-size: .8rem; }
-.header-nav a:hover { color: var(--accent); }
-.theme-toggle { flex-shrink: 0; }
-@media (max-width: 600px) {
-  header { flex-wrap: wrap; }
-  h1 { width: 100%; }
-  h1 span { display: block; }
-  .header-controls { margin-left: auto; }
-}
 
 .input-area { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; }
 .editor-wrap { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }

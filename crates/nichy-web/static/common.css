@@ -18,6 +18,14 @@ body {
   background: var(--bg); color: var(--text);
   transition: background .2s, color .2s;
 }
+header { display: flex; flex-wrap: wrap; align-items: baseline; }
+h1 { font-size: 1.4rem; color: var(--accent); }
+h1 a { color: inherit; text-decoration: none; }
+h1 span { color: var(--dim); font-weight: normal; font-size: .85rem; display: inline-block; }
+.header-controls { display: flex; gap: .8rem; align-items: center; margin-left: auto; }
+.header-nav { display: flex; gap: .8rem; }
+.header-nav a { color: var(--dim); text-decoration: none; font-size: .8rem; }
+.header-nav a:hover { color: var(--accent); }
 .theme-toggle {
   background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
   padding: .35rem .7rem; font-family: inherit; font-size: .8rem; color: var(--text); cursor: pointer;
