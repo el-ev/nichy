@@ -1,0 +1,8 @@
+[workspace]
+members = ["crates/nichy", "crates/nichy-cli", "crates/nichy-rustc", "crates/nichy-web"]
+exclude = ["rust"]
+resolver = "3"
+
+[profile.release]
+strip = true
+lto = true

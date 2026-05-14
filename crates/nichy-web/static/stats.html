@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>Stats — {{SITE_NAME}}</title>
+<link rel="stylesheet" href="/common.css">
+<style>
+[data-theme="dark"] {
+  --bar-bg: #0f3460; --bar-fg: #4ecca3; --bar-err: #e94560;
+}
+[data-theme="light"] {
+  --bar-bg: #e8e8e8; --bar-fg: #1e8449; --bar-err: #c0392b;
+}
+body { line-height: 1.6; }
+.container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
+header { display: flex; align-items: baseline; justify-content: space-between;
+  gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+h1 { font-size: 1.4rem; color: var(--accent); }
+h1 a { color: inherit; text-decoration: none; }
+h1 span { color: var(--dim); font-weight: normal; font-size: .85rem; }
+nav { display: flex; gap: .8rem; align-items: center; }
+nav a { color: var(--dim); text-decoration: none; font-size: .8rem; }
+nav a:hover { color: var(--accent); }
+.card { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem 1.2rem; margin-bottom: 1rem; }
+.card h2 { font-size: .9rem; color: var(--dim); font-weight: normal;
+  text-transform: uppercase; letter-spacing: .06em; margin-bottom: .8rem; }
+
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: .35rem 1rem; font-size: .85rem; }
+.kv dt { color: var(--dim); }
+.kv dd { color: var(--text); }
+.big-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: .8rem; }
+.big-cell { background: var(--info-bg); border-radius: 6px; padding: .6rem .8rem; }
+.big-cell .label { font-size: .7rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+.big-cell .value { font-size: 1.4rem; color: var(--text); margin-top: .15rem; font-variant-numeric: tabular-nums; }
+.big-cell .sub { font-size: .72rem; color: var(--dim); margin-top: .15rem; }
+
+table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+th { text-align: left; color: var(--dim); font-weight: normal;
+  padding: .35rem .5rem; border-bottom: 1px solid var(--border); }
+td { padding: .35rem .5rem; border-bottom: 1px solid var(--border); font-variant-numeric: tabular-nums; }
+td.num { text-align: right; color: var(--dim); }
+tr:last-child td { border-bottom: none; }
+
+.bar { background: var(--bar-bg); border-radius: 4px; height: 8px; overflow: hidden; margin-top: .4rem; }
+.bar > span { display: block; height: 100%; background: var(--bar-fg); transition: width .3s; }
+.bar.err > span { background: var(--bar-err); }
+.bar-label { display: flex; justify-content: space-between; font-size: .78rem; color: var(--dim); }
+
+.muted { color: var(--dim); }
+.status-line { font-size: .72rem; color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><a href="/">{{SITE_NAME}}</a> <span>— stats</span></h1>
+    <nav>
+      <a href="/">visualizer</a>
+      <a href="/api/stats">json</a>
+      <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()"></button>
+    </nav>
+  </header>
+
+  <div id="summary" class="card">
+    <h2>Overview</h2>
+    <div class="big-grid" id="bigGrid">
+      <div class="big-cell muted">loading…</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>By input kind</h2>
+    <div id="mix"></div>
+  </div>
+
+  <div class="card">
+    <h2>Outcomes</h2>
+    <div id="outcomes"></div>
+  </div>
+
+  <div class="card">
+    <h2>Cache</h2>
+    <div class="big-grid" id="cacheGrid"></div>
+    <div id="cacheBars" style="margin-top:.8rem"></div>
+  </div>
+
+  <div class="card">
+    <h2>Shortlinks</h2>
+    <div class="big-grid" id="shortlinkGrid"></div>
+  </div>
+
+  <div class="card">
+    <h2>By target triple</h2>
+    <div id="targets"></div>
+  </div>
+
+  <div class="card">
+    <h2>Timestamps</h2>
+    <dl class="kv" id="timestamps"></dl>
+  </div>
+
+  <div class="status-line" id="status"></div>
+  <footer id="footer" class="footer">{{FOOTER}}</footer>
+</div>
+
+<script src="/common.js"></script>
+<script>
+
+function fmtNum(n) {
+  return Number(n).toLocaleString();
+}
+
+function fmtDuration(secs) {
+  if (secs == null || !isFinite(secs) || secs < 0) return '—';
+  secs = Math.floor(secs);
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (d) return `${d}d ${h}h ${m}m`;
+  if (h) return `${h}h ${m}m ${s}s`;
+  if (m) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function fmtUnix(u) {
+  if (!u) return '—';
+  const d = new Date(u * 1000);
+  return d.toLocaleString();
+}
+
+function fmtAgo(u, now) {
+  if (!u) return '';
+  return fmtDuration(now - u) + ' ago';
+}
+
+function bigCell(label, value, sub) {
+  const cell = mk('div', 'big-cell');
+  cell.append(mk('div', 'label', label));
+  cell.append(mk('div', 'value', value));
+  if (sub) cell.append(mk('div', 'sub', sub));
+  return cell;
+}
+
+function pctBar(label, num, denom, errStyle) {
+  const wrap = mk('div');
+  wrap.style.marginBottom = '.6rem';
+  const lbl = mk('div', 'bar-label');
+  const pct = denom > 0 ? (num / denom) * 100 : 0;
+  lbl.append(mk('span', null, label));
+  lbl.append(mk('span', null, `${fmtNum(num)} / ${fmtNum(denom)} (${pct.toFixed(1)}%)`));
+  wrap.append(lbl);
+  const bar = mk('div', 'bar' + (errStyle ? ' err' : ''));
+  const fill = mk('span');
+  fill.style.width = pct + '%';
+  bar.append(fill);
+  wrap.append(bar);
+  return wrap;
+}
+
+function render(s) {
+  const grid = $('#bigGrid');
+  grid.replaceChildren();
+  const successRate = s.total_requests > 0
+    ? ((s.successful_requests / s.total_requests) * 100).toFixed(1) + '%'
+    : '—';
+  const avgTypes = s.successful_requests > 0
+    ? (s.total_types_analyzed / s.successful_requests).toFixed(2)
+    : '—';
+  grid.append(
+    bigCell('Total requests', fmtNum(s.total_requests),
+            'session up ' + fmtDuration(s.now_unix - s.session_started_unix)),
+    bigCell('Success rate', successRate,
+            `${fmtNum(s.successful_requests)} ok · ${fmtNum(s.failed_requests)} failed`),
+    bigCell('Types analyzed', fmtNum(s.total_types_analyzed),
+            avgTypes !== '—' ? `avg ${avgTypes} / ok req` : ''),
+  );
+
+  const mix = $('#mix');
+  mix.replaceChildren();
+  const modeTotal = s.code_requests + s.type_requests;
+  mix.append(
+    pctBar('code snippets', s.code_requests, modeTotal),
+    pctBar('type expressions', s.type_requests, modeTotal),
+  );
+
+  const out = $('#outcomes');
+  out.replaceChildren();
+  const total = Math.max(s.total_requests, 1);
+  out.append(
+    pctBar('success', s.successful_requests, total),
+    pctBar('analysis error', s.analysis_errors, total, true),
+    pctBar('timeout', s.timeouts, total, true),
+    pctBar('forbidden macro', s.forbidden, total, true),
+    pctBar('bad request', s.bad_requests, total, true),
+    pctBar('internal error', s.internal_errors, total, true),
+  );
+
+  const cacheGrid = $('#cacheGrid');
+  cacheGrid.replaceChildren();
+  const cacheLookups = (s.cache_hits || 0) + (s.cache_misses || 0);
+  const hitRate = cacheLookups > 0
+    ? ((s.cache_hits / cacheLookups) * 100).toFixed(1) + '%'
+    : '—';
+  cacheGrid.append(
+    bigCell('Hit rate', hitRate,
+            `${fmtNum(s.cache_hits || 0)} hits · ${fmtNum(s.cache_misses || 0)} misses`),
+    bigCell('Entries', `${fmtNum(s.cache_size || 0)} / ${fmtNum(s.cache_capacity || 0)}`),
+  );
+  const cacheBars = $('#cacheBars');
+  cacheBars.replaceChildren();
+  if (cacheLookups > 0) {
+    cacheBars.append(
+      pctBar('hits', s.cache_hits || 0, cacheLookups),
+      pctBar('misses', s.cache_misses || 0, cacheLookups, true),
+    );
+  } else {
+    cacheBars.append(mk('div', 'muted', 'no cache lookups yet'));
+  }
+
+  const shortlinkGrid = $('#shortlinkGrid');
+  shortlinkGrid.replaceChildren();
+  const created = s.shortlinks_created || 0;
+  const loaded = s.shortlinks_loaded || 0;
+  const loadsPerLink = created > 0 ? (loaded / created).toFixed(2) : '—';
+  shortlinkGrid.append(
+    bigCell('Stored snippets', fmtNum(s.snippets_total || 0),
+            'persisted via /api/shorten'),
+    bigCell('Shorten requests', fmtNum(created),
+            'successful POST /api/shorten'),
+    bigCell('Snippet loads', fmtNum(loaded),
+            loadsPerLink !== '—' ? `avg ${loadsPerLink} loads / link` : ''),
+  );
+
+  const targets = $('#targets');
+  targets.replaceChildren();
+  const entries = Object.entries(s.by_target || {}).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) {
+    targets.append(mk('div', 'muted', 'no successful requests yet'));
+  } else {
+    const table = mk('table');
+    const thead = mk('thead');
+    thead.innerHTML = '<tr><th>target</th><th class="num">count</th><th class="num">share</th></tr>';
+    table.append(thead);
+    const tbody = mk('tbody');
+    const totalT = entries.reduce((acc, [, n]) => acc + n, 0);
+    for (const [k, v] of entries) {
+      const tr = mk('tr');
+      const pct = totalT > 0 ? ((v / totalT) * 100).toFixed(1) + '%' : '—';
+      tr.innerHTML = `<td>${esc(k)}</td><td class="num">${fmtNum(v)}</td><td class="num">${pct}</td>`;
+      tbody.append(tr);
+    }
+    table.append(tbody);
+    targets.append(table);
+  }
+
+  const ts = $('#timestamps');
+  ts.replaceChildren();
+  const rows = [
+    ['first ever request', fmtUnix(s.first_seen_unix), fmtAgo(s.first_seen_unix, s.now_unix)],
+    ['last request', fmtUnix(s.last_request_unix), fmtAgo(s.last_request_unix, s.now_unix)],
+    ['session started', fmtUnix(s.session_started_unix), fmtAgo(s.session_started_unix, s.now_unix)],
+  ];
+  for (const [k, v, ago] of rows) {
+    const dt = mk('dt', null, k);
+    const dd = mk('dd', null, ago ? `${v}  (${ago})` : v);
+    ts.append(dt, dd);
+  }
+
+  $('#status').textContent = 'updated ' + new Date().toLocaleTimeString();
+}
+
+async function refresh() {
+  try {
+    const r = await fetch('/api/stats');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    render(await r.json());
+  } catch (e) {
+    $('#status').textContent = 'failed to load: ' + e.message;
+  }
+}
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+# nichy-rust toolchain image
+#
+# Builds nightly rustc + cross-target std libraries. Produces a base image
+# that the main nichy-web Dockerfile consumes via FROM nichy-rust:main.
+#
+# Build once (or when you want a fresh rustc):
+#   docker build -f Dockerfile.rust -t nichy-rust:main .
+#
+# Bust the git clone cache to pick up a new rustc revision:
+#   docker build -f Dockerfile.rust -t nichy-rust:main --build-arg CACHEBUST=$(date +%s) .
+
+ARG RUST_GIT=https://github.com/rust-lang/rust.git
+ARG RUST_BRANCH=main
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build curl git python3 pkg-config \
+    libssl-dev ca-certificates \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
+    gcc-i686-linux-gnu g++-i686-linux-gnu \
+    lld \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG RUST_GIT
+ARG RUST_BRANCH
+ARG CACHEBUST=1
+ARG TARGETS="x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu,i686-unknown-linux-gnu,wasm32-unknown-unknown"
+
+WORKDIR /rust
+RUN echo "cachebust=$CACHEBUST" && git clone --depth 1 --branch "$RUST_BRANCH" "$RUST_GIT" .
+
+RUN cat > bootstrap.toml <<'TOML'
+profile = "compiler"
+
+[llvm]
+download-ci-llvm = true
+
+[build]
+extended = false
+docs = false
+
+[rust]
+codegen-backends = ["llvm"]
+deny-warnings = false
+
+[target.aarch64-unknown-linux-gnu]
+cc = "aarch64-linux-gnu-gcc"
+cxx = "aarch64-linux-gnu-g++"
+linker = "aarch64-linux-gnu-gcc"
+
+[target.i686-unknown-linux-gnu]
+cc = "i686-linux-gnu-gcc"
+cxx = "i686-linux-gnu-g++"
+linker = "i686-linux-gnu-gcc"
+TOML
+
+RUN python3 x.py build library --stage 2 --target "$TARGETS" -j "$(nproc)" && \
+    python3 x.py dist rustc-dev --stage 2 -j "$(nproc)" && \
+    cp -rL build/tmp/tarball/rustc-dev/x86_64-unknown-linux-gnu/image/lib/rustlib/x86_64-unknown-linux-gnu/lib/. \
+        build/x86_64-unknown-linux-gnu/stage2/lib/rustlib/x86_64-unknown-linux-gnu/lib/ && \
+    rm -rf build/tmp/tarball

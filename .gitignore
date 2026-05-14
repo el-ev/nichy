@@ -1,0 +1,5 @@
+target/
+flake.lock
+.nichy-extra-libs
+nichy-web.db*
+CLAUDE.md

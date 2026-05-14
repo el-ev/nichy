@@ -1,0 +1,21 @@
+[package]
+name = "nichy-rustc"
+version = "0.1.3"
+edition = "2024"
+description = "Rustc driver backend for nichy"
+license = "MIT"
+repository = "https://github.com/el-ev/nichy"
+publish = false
+
+[dependencies]
+nichy = { path = "../nichy" }
+serde_json = "1"
+
+[target.'cfg(rust_analyzer)'.dependencies]
+rustc_abi = { path = "../../rust/compiler/rustc_abi", default-features = false }
+rustc_driver = { path = "../../rust/compiler/rustc_driver" }
+rustc_hir = { path = "../../rust/compiler/rustc_hir" }
+rustc_interface = { path = "../../rust/compiler/rustc_interface" }
+rustc_middle = { path = "../../rust/compiler/rustc_middle" }
+rustc_session = { path = "../../rust/compiler/rustc_session" }
+rustc_span = { path = "../../rust/compiler/rustc_span" }

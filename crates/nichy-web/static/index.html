@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>{{SITE_NAME}} — Rust type layout visualizer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/codemirror.min.css">
+<link rel="stylesheet" href="/common.css">
+<style>
+:root {
+  
+  --f0: #4477AA; 
+  --f1: #EE6677; 
+  --f2: #228833; 
+  --f3: #CCBB44; 
+  --f4: #66CCEE; 
+  --f5: #AA3377; 
+  --f6: #BBBBBB; 
+  --f7: #EE8866; 
+  --disc-color: #CC3311; 
+}
+[data-theme="dark"] {
+  --pad-bg: #2a2a3e; --pad-text: #555;
+  --table-sep: #1a1a2e; --highlight-bg: rgba(255,255,255,.06);
+  --byte-border: transparent;
+  --byte-hover-border: #fff; --type-name: #5dade2;
+}
+
+[data-theme="light"] {
+  --pad-bg: #e8e8e8; --pad-text: #999;
+  --table-sep: #eee; --highlight-bg: rgba(0,0,0,.04);
+  --byte-border: transparent;
+  --byte-hover-border: #333; --type-name: #2471a3;
+}
+
+body { min-height: 100vh; }
+.container { max-width: 1000px; margin: 0 auto; padding: 1.5rem; }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+h1 { font-size: 1.4rem; color: var(--accent); }
+h1 span { color: var(--dim); font-weight: normal; font-size: .85rem; }
+.header-controls { display: flex; gap: .8rem; align-items: center; flex-shrink: 0; }
+.header-nav { display: flex; gap: .8rem; }
+.header-nav a { color: var(--dim); text-decoration: none; font-size: .8rem; }
+.header-nav a:hover { color: var(--accent); }
+.theme-toggle { flex-shrink: 0; }
+@media (max-width: 600px) {
+  header { flex-wrap: wrap; }
+  h1 { width: 100%; }
+  h1 span { display: block; }
+  .header-controls { margin-left: auto; }
+}
+
+.input-area { display: flex; flex-direction: column; gap: .5rem; margin: 1rem 0; }
+.editor-wrap { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.editor-wrap:focus-within { border-color: var(--accent); }
+.CodeMirror {
+  height: 200px; font-family: 'JetBrains Mono','Fira Code','Cascadia Code',monospace;
+  font-size: .85rem; line-height: 1.5; background: var(--surface); color: var(--text);
+}
+.CodeMirror-gutters { background: var(--surface); border-right: 1px solid var(--border); }
+.CodeMirror-linenumber { color: var(--dim); }
+.CodeMirror-cursor { border-left-color: var(--text); }
+.CodeMirror-selected { background: rgba(255,255,255,.1) !important; }
+[data-theme="light"] .CodeMirror-selected { background: rgba(0,0,0,.1) !important; }
+.cm-s-default .cm-keyword { color: #c678dd; } .cm-s-default .cm-atom { color: #d19a66; }
+.cm-s-default .cm-number { color: #d19a66; } .cm-s-default .cm-def { color: #61afef; }
+.cm-s-default .cm-variable { color: var(--text); } .cm-s-default .cm-variable-2 { color: #e06c75; }
+.cm-s-default .cm-type { color: #e5c07b; } .cm-s-default .cm-property { color: var(--text); }
+.cm-s-default .cm-operator { color: #56b6c2; } .cm-s-default .cm-string { color: #98c379; }
+.cm-s-default .cm-string-2 { color: #98c379; } .cm-s-default .cm-comment { color: var(--dim); font-style: italic; }
+.cm-s-default .cm-meta { color: #e06c75; } .cm-s-default .cm-builtin { color: #e5c07b; }
+.cm-s-default .cm-bracket { color: var(--dim); } .cm-s-default .cm-tag { color: #e06c75; }
+.cm-s-default .cm-attribute { color: #d19a66; }
+[data-theme="light"] .cm-s-default .cm-keyword { color: #a626a4; }
+[data-theme="light"] .cm-s-default .cm-atom { color: #986801; }
+[data-theme="light"] .cm-s-default .cm-number { color: #986801; }
+[data-theme="light"] .cm-s-default .cm-def { color: #4078f2; }
+[data-theme="light"] .cm-s-default .cm-variable { color: var(--text); }
+[data-theme="light"] .cm-s-default .cm-variable-2 { color: #e45649; }
+[data-theme="light"] .cm-s-default .cm-type { color: #c18401; }
+[data-theme="light"] .cm-s-default .cm-string { color: #50a14f; }
+[data-theme="light"] .cm-s-default .cm-comment { color: var(--dim); }
+[data-theme="light"] .cm-s-default .cm-meta { color: #e45649; }
+[data-theme="light"] .cm-s-default .cm-builtin { color: #c18401; }
+.row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.controls { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.ctrl-row { display: flex; gap: .5rem; align-items: center; }
+.ctrl-row input[type=text] { flex: 1; min-width: 120px; }
+@media (max-width: 600px) {
+  .controls { flex-direction: column; align-items: stretch; }
+  .ctrl-row { flex-wrap: wrap; }
+}
+input[type=text] { flex: 1; min-width: 160px; background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 6px; padding: .5rem .75rem;
+  font-family: inherit; font-size: .85rem; }
+input:focus { outline: none; border-color: var(--accent); }
+select { background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  border-radius: 6px; padding: .5rem .75rem; font-family: inherit; font-size: .85rem;
+  cursor: pointer; }
+select:focus { outline: none; border-color: var(--accent); }
+button { background: var(--accent); color: #fff; border: none; border-radius: 6px;
+  padding: .5rem 1.2rem; font-family: inherit; font-size: .85rem; cursor: pointer; white-space: nowrap; }
+button:hover { opacity: .9; } button:disabled { opacity: .5; cursor: default; }
+.or { color: var(--dim); font-size: .8rem; }
+#status { color: var(--dim); font-size: .8rem; min-height: 1.2em; white-space: pre-wrap; flex: 1; }
+.status-row { display: flex; align-items: center; gap: .8rem; }
+.link-btn { background: transparent; color: var(--dim); border: 1px solid var(--border);
+  padding: .25rem .6rem; font-size: .75rem; border-radius: 4px; }
+.link-btn:hover { color: var(--accent); border-color: var(--accent); opacity: 1; }
+
+.type-card { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.type-name { font-size: 1.1rem; font-weight: bold; color: var(--type-name); }
+.type-meta { color: var(--dim); font-size: .8rem; margin-top: .2rem; }
+.badge { margin: .6rem 0; padding: .4rem .7rem; border-radius: 4px; font-size: .85rem; display: inline-block; }
+.badge.niche { background: var(--badge-niche-bg); color: var(--badge-niche-fg); }
+.badge.tagged { background: var(--badge-tagged-bg); color: var(--badge-tagged-fg); }
+.niches-line { color: var(--dim); font-size: .8rem; margin-top: .3rem; }
+
+table.fields { width: 100%; border-collapse: collapse; margin: .6rem 0; font-size: .82rem; table-layout: fixed; }
+table.fields th { text-align: left; color: var(--dim); font-weight: normal;
+  padding: .3rem .5rem; border-bottom: 1px solid var(--border); }
+table.fields th:nth-child(1) { width: 4em; }
+table.fields th:nth-child(2) { width: 3.5em; }
+table.fields td { padding: .3rem .5rem; border-bottom: 1px solid var(--table-sep); transition: background .1s;
+  overflow-wrap: break-word; word-break: break-all; }
+table.fields tr.highlight td { background: var(--highlight-bg); }
+td.offset { color: var(--dim); } td.pad { color: var(--dim); font-style: italic; }
+
+.bar-section { margin: .7rem 0; }
+.bar-label { font-size: .75rem; color: var(--dim); margin-bottom: .3rem; }
+.bar-info { font-size: .78rem; color: var(--text); min-height: 1.6em; line-height: 1.6em; margin-top: .4rem; margin-bottom: .4rem;
+  padding: 0 .4rem; background: var(--info-bg); border-radius: 4px; }
+.bar-row { display: flex; align-items: center; gap: 4px; margin-bottom: 2px; }
+.bar-offset { font-size: .65rem; color: var(--dim); width: 22px; text-align: right; flex-shrink: 0; }
+.bar-cells { display: flex; gap: 3px; flex: 1; }
+.byte { aspect-ratio: 1; border-radius: 3px; display: flex; align-items: center;
+  justify-content: center; font-size: .6rem; color: #fff; cursor: pointer;
+  transition: opacity .12s, transform .12s; border: 2px solid var(--byte-border); flex: 1 1 0; min-width: 0; max-width: 30px; }
+.byte:hover { transform: scale(1.15); z-index: 1; }
+.byte.pad { background: var(--pad-bg); color: var(--pad-text); }
+.byte.niche-cell { background-image: repeating-linear-gradient(
+  -45deg, transparent, transparent 3px, rgba(255,255,255,.25) 3px, rgba(255,255,255,.25) 5px); }
+.byte.dimmed { opacity: .3; }
+.byte.highlighted { border-color: var(--byte-hover-border); }
+td.disc { color: var(--disc-color, #CC3311); font-style: italic; }
+.niche-line { font-size: .78rem; color: var(--dim); margin-top: .4rem; padding: .3rem .5rem;
+  background: var(--info-bg); border-radius: 4px; border-left: 3px solid var(--badge-niche-fg); }
+
+.variant-tabs { display: flex; gap: 2px; margin: .5rem 0 .2rem; flex-wrap: wrap; }
+.vtab { padding: .3rem .7rem; border-radius: 4px 4px 0 0; font-size: .8rem; cursor: pointer;
+  border: 1px solid transparent; border-bottom: none; background: transparent; color: var(--dim);
+  font-family: inherit; opacity: .45; transition: opacity .15s; }
+.vtab.active { background: var(--surface); color: var(--text); opacity: 1; font-weight: 600;
+  border-color: var(--border); border-bottom: 2px solid var(--surface); margin-bottom: -1px; }
+.vtab:hover:not(.active) { opacity: .75; }
+
+.variant-card { margin: .4rem 0; padding: .5rem .7rem; border-left: 3px solid var(--border); }
+.variant-name { font-weight: bold; font-size: .9rem; }
+.variant-meta { color: var(--dim); font-size: .8rem; }
+
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>{{SITE_NAME}} <span> Rust type layout &amp; niche optimization visualizer</span></h1>
+    <div class="header-controls">
+      <nav class="header-nav"><a href="/about">about</a><a href="/stats">stats</a></nav>
+      <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()"></button>
+    </div>
+  </header>
+  <div class="input-area">
+    <div class="editor-wrap">
+      <textarea id="code">struct Padded {
+    a: u8,
+    b: u64,
+    c: u8,
+}
+
+type Ref = Option<&'static u64>;
+
+enum Expr {
+    Literal(f64),
+    BinOp { op: char, lhs: Box<f64>, rhs: Box<f64> },
+    Neg(Box<f64>),
+}</textarea>
+    </div>
+    <div class="controls">
+      <div class="ctrl-row">
+        <button onclick="submitCode()">Analyze</button>
+        <span class="or">/</span>
+        <input type="text" id="typeExpr" placeholder="Option<&u64>" onkeydown="if(event.key==='Enter')submitType()">
+        <button onclick="submitType()">Analyze type</button>
+      </div>
+      <div class="ctrl-row">
+        <span class="or">target</span>
+        <select id="targetTriple">
+        <option value="x86_64-unknown-linux-gnu">x86_64-linux</option>
+        <option value="aarch64-unknown-linux-gnu">aarch64-linux</option>
+        <option value="i686-unknown-linux-gnu">i686-linux</option>
+        <option value="wasm32-unknown-unknown">wasm32</option>
+      </select>
+      </div>
+    </div>
+    <div class="status-row">
+      <div id="status"></div>
+      <button id="shareBtn" class="link-btn" onclick="shareLink()" hidden>share link</button>
+    </div>
+  </div>
+  <div id="filterRow" class="row" style="display:none; margin-bottom:.5rem">
+    <input type="text" id="filter" placeholder="Filter types…" oninput="applyFilter()">
+  </div>
+  <div id="results" class="results"></div>
+  <footer id="footer" class="footer">{{FOOTER}}</footer>
+</div>
+<script src="/common.js"></script>
+<script>
+
+const _cs = getComputedStyle(document.documentElement);
+const FC = Array.from({length:8}, (_,i) => _cs.getPropertyValue('--f'+i).trim());
+const DISC_COLOR = _cs.getPropertyValue('--disc-color').trim();
+
+function getTarget() {
+  return $('#targetTriple').value || null;
+}
+
+async function submitCode() { const c=editor.getValue().trim(); if(c) await doAnalyze({code:c}); }
+async function submitType() { const t=$('#typeExpr').value.trim(); if(t) await doAnalyze({type:t}); }
+
+let lastAnalyzed = null;
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    try { await navigator.clipboard.writeText(text); return true; } catch {}
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  document.body.removeChild(ta);
+  return ok;
+}
+
+async function shareLink() {
+  const btn = $('#shareBtn');
+  const prev = btn.textContent;
+  if (!lastAnalyzed) return;
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/shorten', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(lastAnalyzed)});
+    const d = await r.json();
+    if (!r.ok || !d.id) {
+      btn.textContent = 'failed';
+    } else {
+      const url = `${location.origin}/s/${d.id}`;
+      history.replaceState(null, '', `/s/${d.id}`);
+      const ok = await copyText(url);
+      btn.textContent = ok ? 'copied' : 'copy failed';
+    }
+  } catch {
+    btn.textContent = 'failed';
+  } finally {
+    setTimeout(() => { btn.textContent = prev; btn.disabled = false; }, 1200);
+  }
+}
+
+async function doAnalyze(body) {
+  const target = getTarget();
+  if (target) body.target = target;
+  $('#status').textContent = 'analyzing…';
+  $('#results').innerHTML = '';
+  $('#filter').value = '';
+  $('#filterRow').style.display = 'none';
+  $('#shareBtn').hidden = true;
+  lastAnalyzed = null;
+  document.querySelectorAll('button:not(.theme-toggle)').forEach(b=>b.disabled=true);
+  try {
+    const r = await fetch('/api/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const d = await r.json();
+    if (!r.ok || d.error) { $('#status').textContent = d.error || `request failed (${r.status})`; return; }
+    if (body.code || body.type) {
+      lastAnalyzed = body;
+      $('#shareBtn').hidden = false;
+    }
+    const label = d.types.length+' type(s) analyzed';
+    $('#status').textContent = label;
+    for (const t of d.types) {
+      const card = renderType(t);
+      card.dataset.typeName = t.name.toLowerCase();
+      $('#results').appendChild(card);
+    }
+    if (d.types.length > 3) $('#filterRow').style.display = '';
+  } catch(e) { $('#status').textContent = 'failed: '+e.message; }
+  finally { document.querySelectorAll('button:not(.theme-toggle)').forEach(b=>b.disabled=false); }
+}
+
+function applyFilter() {
+  const q = $('#filter').value.toLowerCase();
+  document.querySelectorAll('.type-card').forEach(card => {
+    card.style.display = card.dataset.typeName.includes(q) ? '' : 'none';
+  });
+}
+
+function renderType(t) {
+  const card = mk('div','type-card');
+  card.append(mk('div','type-name',t.name), mk('div','type-meta',`${t.size} bytes, align ${t.alignment}`));
+  if (t.hover_info) card.append(mk('div','type-meta',t.hover_info));
+  if (t.kind==='struct') renderStruct(card,t);
+  else if (t.kind==='enum') renderEnum(card,t);
+  else card.append(mk('div','type-meta', t.size>0?`scalar / opaque (${t.size} bytes)`:'zero-sized type'));
+  return card;
+}
+function renderStruct(card, t) {
+  const fields = t.fields||[];
+  if (!fields.length) return;
+  const {table,rows} = fieldTable(fields, t.size);
+  card.append(table);
+  if (t.size>0 && t.size<=128)
+    card.append(memoryBar(fields, t.size, rows, 0, t.largest_niche));
+}
+function enumDiscInfo(t) {
+  const s = t.strategy;
+  const isTagged = s?.type==='Tagged';
+  const isNiche = s?.type==='NicheOptimized';
+  const d = t.discriminant;
+  let tagOff = 0, tagSize = 0, nicheOff = -1, nicheSize = 0;
+  if (d?.encoding==='Direct') { tagOff = d.tag_offset; tagSize = d.tag_size; }
+  if (d?.encoding==='Niche' && t.niche) { nicheOff = t.niche.offset; nicheSize = t.niche.value_size; }
+  return {isTagged, isNiche, tagOff, tagSize, nicheOff, nicheSize};
+}
+
+function renderEnum(card, t) {
+  const s = t.strategy;
+  if (s?.type==='NicheOptimized')
+    card.append(mk('div','badge niche','niche optimized'));
+  else if (s?.type==='Tagged')
+    card.append(mk('div','badge tagged',`tagged (${s.discriminant_size}-byte discriminant)`));
+  if (t.remaining_niches!=null) {
+    card.append(mk('div','niches-line','remaining niches: '+fmtNicheCount(t.remaining_niches)));
+  }
+
+  const variants = t.variants||[];
+  if (!variants.length) return;
+
+  const di = enumDiscInfo(t);
+
+  if (t.size>0 && t.size<=128) {
+    const barSection = mk('div','bar-section');
+    const infoEl = mk('div','bar-info',' ');
+    barSection.append(mk('div','bar-label','Memory layout'));
+
+    if (variants.length > 1) {
+      const tabs = mk('div','variant-tabs');
+      const barHost = mk('div');
+      for (let i=0;i<variants.length;i++) {
+        const tab = mk('button','vtab',variants[i].name);
+        tab.style.borderTopColor = FC[i%FC.length];
+        if (i===0) tab.classList.add('active');
+        tab.onclick = () => {
+          tabs.querySelectorAll('.vtab').forEach(t=>t.classList.remove('active'));
+          tab.classList.add('active');
+          drawVariantBar(barHost, infoEl, variants[i], i, t.size, di, t.niche, t);
+        };
+        tabs.append(tab);
+      }
+      barSection.append(tabs, barHost);
+      drawVariantBar(barHost, infoEl, variants[0], 0, t.size, di, t.niche, t);
+    } else if (variants.length === 1) {
+      barSection.append(buildBarDom(buildLabels(variants[0].fields, t.size, 0), t.size, infoEl, null, t.largest_niche));
+    }
+    barSection.append(infoEl);
+    card.append(barSection);
+  }
+
+  if (di.isNiche && t.niche) {
+    card.append(nicheDetail(t));
+  }
+
+  for (let i=0;i<variants.length;i++) {
+    const v = variants[i];
+    const vc = mk('div','variant-card');
+    vc.style.borderColor = FC[i%FC.length];
+    const nm = mk('span','variant-name',v.name);
+    nm.style.color = FC[i%FC.length];
+    vc.append(nm);
+    vc.append(mk('span','variant-meta',
+      v.fields.length?` — ${v.size} bytes`:v.size>0?` — ${v.size} bytes, opaque`:' (unit)'));
+    if (v.fields.length) { const {table}=fieldTable(v.fields,v.size,di); vc.append(table); }
+    card.append(vc);
+  }
+}
+
+function nicheDetail(t) {
+  const n = t.niche;
+  const d = t.discriminant;
+  const nicheStart = d?.niche_start ?? 0;
+  const used = (t.variants?.length||1) - 1;
+  const remaining = Number(t.remaining_niches ?? 0);
+
+  let valDesc;
+  if (used === 1 && nicheStart === 0)
+    valDesc = `0x0 = ${t.variants.find(v => v.name !== d.untagged_variant)?.name ?? '?'}`;
+  else if (used > 0)
+    valDesc = `${used} value${used>1?'s':''} from 0x${bigHex(nicheStart)}`;
+  else
+    valDesc = `start 0x${bigHex(nicheStart)}`;
+
+  const el = mk('div','niche-line');
+  el.textContent = `niche at +0x${hx(n.offset)} (${n.value_type}, ${n.value_size}B): ${valDesc}; ${used} used, ${remaining} remaining`;
+  return el;
+}
+function memoryBar(fields, total, tableRows, colorOff, nicheInfo) {
+  const section = mk('div','bar-section');
+  const infoEl = mk('div','bar-info',' ');
+  section.append(mk('div','bar-label','Memory layout'));
+  section.append(buildBarDom(buildLabels(fields, total, colorOff), total, infoEl, tableRows, nicheInfo, null));
+  section.append(infoEl);
+  return section;
+}
+
+function drawVariantBar(host, infoEl, variant, varIdx, total, di, nicheInfo, t) {
+  host.replaceChildren();
+  const labels = new Array(total).fill(null);
+  if (di.isTagged && di.tagSize > 0) {
+    const dv = variant.discr_value != null ? `(0x${bigHex(variant.discr_value)})` : '';
+    for (let b=di.tagOff;b<di.tagOff+di.tagSize&&b<total;b++)
+      labels[b] = {name:'discriminant',type:`tag: ${variant.name}${dv}`,color:DISC_COLOR,field:'disc',niche:null};
+  }
+  for (let i=0;i<variant.fields.length;i++) {
+    const f = variant.fields[i];
+    for (let b=f.offset;b<f.offset+f.size&&b<total;b++)
+      labels[b] = {name:f.name,type:f.typename,color:FC[i%FC.length],field:'f'+i,niche:f.largest_niche||null};
+  }
+  let nicheUsage = null;
+  if (di.isNiche && nicheInfo && t?.discriminant?.untagged_variant === variant.name) {
+    const used = (t.variants?.length || 1) - 1;
+    const remaining = Number(t.remaining_niches ?? 0);
+    nicheUsage = { offset: nicheInfo.offset, size: nicheInfo.value_size, used, remaining };
+  }
+  host.append(buildBarDom(labels, total, infoEl, null, nicheInfo, nicheUsage));
+}
+
+function buildLabels(fields, total, colorOff) {
+  const labels = new Array(total).fill(null);
+  for (let i=0;i<fields.length;i++) {
+    const f = fields[i];
+    for (let b=f.offset;b<f.offset+f.size&&b<total;b++)
+      labels[b] = {name:f.name,type:f.typename,color:FC[(colorOff+i)%FC.length],field:'f'+i,niche:f.largest_niche||null};
+  }
+  return labels;
+}
+
+function fmtNicheCount(s) {
+  let b;
+  try { b = BigInt(s); } catch { return String(s); }
+  if (b >= (1n << 60n)) return 'a lot of';
+  return b.toString();
+}
+
+function bigHex(s) {
+  try { return BigInt(s).toString(16); } catch { return String(s); }
+}
+
+function describeNiche(n) {
+  const cnt = fmtNicheCount(n.available);
+  const word = (cnt === '1') ? 'niche' : 'niches';
+  return `${cnt} ${word} available (${n.value_type}, valid 0x${bigHex(n.valid_range_start)}..=0x${bigHex(n.valid_range_end)})`;
+}
+
+function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage) {
+  const wrap = mk('div');
+  const CELL_W = 33; // 30px cell + 3px gap
+  const OFFSET_W = 26; // 22px label + 4px gap
+  const cardPad = 34; // type-card padding + border
+  const avail = (document.querySelector('.container')?.clientWidth ?? 1000) - cardPad;
+  const fits16 = avail >= OFFSET_W + 16 * CELL_W;
+  const bpr = total <= 8 ? 8 : (fits16 ? 16 : 8);
+  const nicheStart = nicheInfo?.offset ?? -1;
+  const nicheEnd = nicheStart >= 0 ? nicheStart + (nicheInfo?.value_size ?? 0) : -1;
+  const allCells = [];
+  for (let rs=0;rs<total;rs+=bpr) {
+    const row = mk('div','bar-row');
+    const offLbl = mk('div','bar-offset',hx(rs));
+    const cells = mk('div','bar-cells');
+    const rowEnd = Math.min(rs+bpr, total);
+    for (let b=rs;b<rowEnd;b++) {
+      const cell = mk('div','byte');
+      const L = labels[b];
+      if (L) { cell.style.backgroundColor=L.color; cell.dataset.field=L.field; cell.dataset.name=L.name; }
+      else { cell.classList.add('pad'); cell.dataset.field='pad'; cell.dataset.name=''; }
+      if (b >= nicheStart && b < nicheEnd) cell.classList.add('niche-cell');
+      cell.dataset.offset = b;
+      allCells.push(cell);
+      cells.append(cell);
+    }
+    for (let s=rowEnd-rs;s<bpr;s++) {
+      const spacer = mk('div','byte');
+      spacer.style.visibility = 'hidden';
+      cells.append(spacer);
+    }
+    row.append(offLbl, cells);
+    wrap.append(row);
+  }
+
+  const onEnter = c => {
+    const off = +c.dataset.offset;
+    const L = labels[off];
+    if (L) {
+      let line = `0x${hx(off)}: ${L.name} (${L.type})`;
+      if (L.niche) {
+        line += `; ${describeNiche(L.niche)}`;
+        if (nicheUsage && off >= nicheUsage.offset && off < nicheUsage.offset + nicheUsage.size) {
+          line += `, ${nicheUsage.used} used, ${nicheUsage.remaining} remaining`;
+        }
+      }
+      infoEl.textContent = line;
+      const fi = c.dataset.field;
+      allCells.forEach(x => {
+        if (x.dataset.field===fi) x.classList.add('highlighted');
+        else if (!x.classList.contains('pad')) x.classList.add('dimmed');
+      });
+      if (tableRows) tableRows.forEach((tr,i)=>{ if ('f'+i===fi) tr.classList.add('highlight'); });
+    } else {
+      infoEl.textContent = `0x${hx(off)}: padding`;
+      allCells.forEach(x=>{ if (!x.classList.contains('pad')) x.classList.add('dimmed'); });
+    }
+  };
+  const onLeave = () => {
+    infoEl.textContent = ' ';
+    allCells.forEach(c=>c.classList.remove('dimmed','highlighted'));
+    if (tableRows) tableRows.forEach(tr=>tr.classList.remove('highlight'));
+  };
+  allCells.forEach(c=>{ c.addEventListener('mouseenter',()=>onEnter(c)); c.addEventListener('mouseleave',onLeave); });
+  return wrap;
+}
+function fieldTable(fields, total, di) {
+  const table = document.createElement('table'); table.className='fields';
+  const thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Offset</th><th>Size</th><th>Field</th></tr>';
+  table.append(thead);
+  const tbody = document.createElement('tbody');
+  const rows = [];
+  let prev = 0;
+  for (let i=0;i<fields.length;i++) {
+    const f = fields[i];
+    if (f.offset>prev) {
+      emitGap(tbody, prev, f.offset, di);
+    }
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="offset">0x${hx(f.offset)}</td><td>${f.size}</td>`+
+      `<td style="color:${FC[i%FC.length]}">${esc(f.name)}: ${esc(f.typename)}</td>`;
+    tr.dataset.fieldIdx = i;
+    rows.push(tr);
+    tbody.append(tr);
+    prev = f.offset+f.size;
+  }
+  if (prev<total) {
+    emitGap(tbody, prev, total, di);
+  }
+  table.append(tbody);
+  return {table,rows};
+}
+
+function emitGap(tbody, from, to, di) {
+  if (di && di.isTagged && di.tagOff>=from && di.tagOff<to) {
+    if (di.tagOff > from) {
+      const pr=document.createElement('tr');
+      pr.innerHTML=`<td class="offset">0x${hx(from)}</td><td class="pad">${di.tagOff-from}</td><td class="pad">padding</td>`;
+      tbody.append(pr);
+    }
+    const dr=document.createElement('tr');
+    dr.innerHTML=`<td class="offset">0x${hx(di.tagOff)}</td><td>${di.tagSize}</td><td class="disc">discriminant</td>`;
+    tbody.append(dr);
+    const afterDisc = di.tagOff + di.tagSize;
+    if (afterDisc < to) {
+      const pr=document.createElement('tr');
+      pr.innerHTML=`<td class="offset">0x${hx(afterDisc)}</td><td class="pad">${to-afterDisc}</td><td class="pad">padding</td>`;
+      tbody.append(pr);
+    }
+  } else {
+    const pr=document.createElement('tr');
+    pr.innerHTML=`<td class="offset">0x${hx(from)}</td><td class="pad">${to-from}</td><td class="pad">padding</td>`;
+    tbody.append(pr);
+  }
+}
+function hx(n) { return n.toString(16).padStart(2,'0'); }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/addon/mode/simple.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/mode/rust/rust.min.js"></script>
+<script>
+const editor = CodeMirror.fromTextArea($('#code'), {
+  mode: 'text/x-rustsrc',
+  lineNumbers: true,
+  indentUnit: 4,
+  tabSize: 4,
+  indentWithTabs: false,
+  matchBrackets: true,
+  extraKeys: {
+    'Ctrl-Enter': submitCode,
+    'Cmd-Enter': submitCode,
+  },
+});
+
+async function loadFromShortlink(id) {
+  $('#status').textContent = 'loading snippet…';
+  try {
+    const r = await fetch(`/api/snippet/${encodeURIComponent(id)}`);
+    if (!r.ok) {
+      $('#status').textContent = `snippet ${id} not found`;
+      return;
+    }
+    const d = await r.json();
+    if (d.target) $('#targetTriple').value = d.target;
+    if (d.type) {
+      editor.setValue('');
+      $('#typeExpr').value = d.type;
+      submitType();
+    } else if (d.code) {
+      editor.setValue(d.code);
+      submitCode();
+    }
+  } catch (e) {
+    $('#status').textContent = 'failed to load snippet: ' + e.message;
+  }
+}
+
+(function init() {
+  const m = location.pathname.match(/^\/s\/([a-z2-7]+)$/);
+  if (m) {
+    loadFromShortlink(m[1]);
+    return;
+  }
+  const p = new URLSearchParams(location.search);
+  const code = p.get('code');
+  const type = p.get('type');
+  const target = p.get('target');
+  if (target) $('#targetTriple').value = target;
+  if (type) {
+    editor.setValue('');
+    $('#typeExpr').value = type;
+    submitType();
+  } else if (code) {
+    editor.setValue(code);
+    submitCode();
+  }
+})();
+</script>
+</body>
+</html>

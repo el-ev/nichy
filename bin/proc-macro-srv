@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+RUST_ROOT="${RUST_ROOT:-$(cd "$(dirname "$0")/../rust" && pwd)}"
+STAGE="$RUST_ROOT/build/x86_64-unknown-linux-gnu/stage2"
+export LD_LIBRARY_PATH="$STAGE/lib:${NICHY_EXTRA_LIBS:+$NICHY_EXTRA_LIBS:}${LD_LIBRARY_PATH:-}"
+exec "$RUST_ROOT/build/x86_64-unknown-linux-gnu/stage2-tools-bin/rust-analyzer-proc-macro-srv" "$@"

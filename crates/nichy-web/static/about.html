@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<title>About — {{SITE_NAME}}</title>
+<link rel="stylesheet" href="/common.css">
+<style>
+[data-theme="dark"] {
+  --code-bg: #0d1117; --inline-code-bg: #2b2c4e; --inline-code-border: #3d3f6b;
+  --link: #5dade2;
+  --table-border: #0f3460; --table-stripe: rgba(255,255,255,.03);
+}
+[data-theme="light"] {
+  --code-bg: #f6f8fa; --inline-code-bg: #e4e7eb; --inline-code-border: #c8ccd1;
+  --link: #2471a3;
+  --table-border: #d0d0d0; --table-stripe: rgba(0,0,0,.02);
+}
+body { line-height: 1.7; }
+.container { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+h1 { font-size: 1.4rem; color: var(--accent); }
+h1 a { color: inherit; text-decoration: none; }
+h1 span { color: var(--dim); font-weight: normal; font-size: .85rem; }
+.header-controls { display: flex; gap: .8rem; align-items: center; flex-shrink: 0; }
+.header-nav { display: flex; gap: .8rem; }
+.header-nav a { color: var(--dim); text-decoration: none; font-size: .8rem; }
+.header-nav a:hover { color: var(--accent); }
+
+h2 { font-size: 1.1rem; color: var(--accent); margin: 2rem 0 .8rem; }
+h3 { font-size: .95rem; color: var(--text); margin: 1.5rem 0 .5rem; }
+p { margin-bottom: .8rem; font-size: .85rem; color: var(--text); }
+ul, ol { margin: .5rem 0 1rem 1.5rem; font-size: .85rem; }
+li { margin-bottom: .3rem; }
+a { color: var(--link); }
+
+code {
+  background: var(--inline-code-bg); border: 1px solid var(--inline-code-border);
+  padding: .1rem .35rem; border-radius: 3px;
+  font-family: inherit; font-size: .82rem;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px;
+  padding: .8rem 1rem; margin: .6rem 0 1rem; overflow-x: auto; font-size: .8rem; line-height: 1.6;
+}
+pre code { background: none; border: none; padding: 0; }
+.cm-s-default .cm-keyword { color: #c678dd; } .cm-s-default .cm-atom { color: #d19a66; }
+.cm-s-default .cm-number { color: #d19a66; } .cm-s-default .cm-def { color: #61afef; }
+.cm-s-default .cm-variable { color: var(--text); } .cm-s-default .cm-variable-2 { color: #e06c75; }
+.cm-s-default .cm-type { color: #e5c07b; } .cm-s-default .cm-property { color: var(--text); }
+.cm-s-default .cm-operator { color: #56b6c2; } .cm-s-default .cm-string { color: #98c379; }
+.cm-s-default .cm-string-2 { color: #98c379; } .cm-s-default .cm-comment { color: var(--dim); font-style: italic; }
+.cm-s-default .cm-meta { color: #e06c75; } .cm-s-default .cm-builtin { color: #e5c07b; }
+.cm-s-default .cm-bracket { color: var(--dim); }
+[data-theme="light"] .cm-s-default .cm-keyword { color: #a626a4; }
+[data-theme="light"] .cm-s-default .cm-atom { color: #986801; }
+[data-theme="light"] .cm-s-default .cm-number { color: #986801; }
+[data-theme="light"] .cm-s-default .cm-def { color: #4078f2; }
+[data-theme="light"] .cm-s-default .cm-variable { color: var(--text); }
+[data-theme="light"] .cm-s-default .cm-variable-2 { color: #e45649; }
+[data-theme="light"] .cm-s-default .cm-type { color: #c18401; }
+[data-theme="light"] .cm-s-default .cm-string { color: #50a14f; }
+[data-theme="light"] .cm-s-default .cm-comment { color: var(--dim); }
+[data-theme="light"] .cm-s-default .cm-meta { color: #e45649; }
+[data-theme="light"] .cm-s-default .cm-builtin { color: #c18401; }
+
+.example { background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1rem; margin: 1rem 0; }
+.example-label { font-size: .75rem; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; margin-bottom: .5rem; }
+
+.badge { padding: .2rem .5rem; border-radius: 4px; font-size: .78rem; display: inline-block; }
+.badge.niche { background: var(--badge-niche-bg); color: var(--badge-niche-fg); }
+.badge.tagged { background: var(--badge-tagged-bg); color: var(--badge-tagged-fg); }
+
+table { width: 100%; border-collapse: collapse; margin: .6rem 0 1rem; font-size: .82rem; }
+th { text-align: left; color: var(--dim); font-weight: normal; padding: .4rem .6rem; border-bottom: 1px solid var(--border); }
+td { padding: .4rem .6rem; border-bottom: 1px solid var(--table-border); }
+td code { white-space: nowrap; }
+tr:nth-child(even) { background: var(--table-stripe); }
+
+.dim { color: var(--dim); }
+.layout-diagram {
+  font-size: .75rem; line-height: 1.4; background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 6px; padding: .8rem 1rem; margin: .6rem 0 1rem; overflow-x: auto; white-space: pre;
+}
+
+ul.reading-list { list-style: none; margin-left: 0; }
+ul.reading-list li { margin-bottom: 1rem; padding: .6rem .8rem; border-left: 3px solid var(--border);
+  border-radius: 0 6px 6px 0; background: var(--surface); }
+ul.reading-list li:hover { border-left-color: var(--accent); }
+ul.reading-list a { font-size: .88rem; font-weight: 600; }
+ul.reading-list p { margin: .3rem 0 0; font-size: .8rem; color: var(--dim); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><a href="/">{{SITE_NAME}}</a> <span>— about</span></h1>
+    <div class="header-controls">
+      <nav class="header-nav"><a href="/">visualizer</a><a href="/stats">stats</a></nav>
+      <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()"></button>
+    </div>
+  </header>
+
+  <p>
+    nichy is a visualizer for Rust type memory layouts. It uses <code>rustc</code>'s
+    internal layout engine to show you exactly how your types are arranged in memory,
+    including field ordering, padding bytes, alignment, and <em>niche optimization</em>.
+  </p>
+
+  <h2>Rust object layout</h2>
+
+  <p>
+    Every value in Rust occupies a fixed number of bytes determined by its type. The compiler
+    decides the <strong>size</strong> (total bytes), <strong>alignment</strong> (what byte
+    boundary the value must start on), and <strong>field order</strong> for each type.
+  </p>
+
+  <h3>Alignment and padding</h3>
+
+  <p>
+    CPUs access memory most efficiently when values sit at addresses that are multiples of
+    their alignment. A <code>u32</code> has alignment 4, so it should start at an address
+    divisible by 4. A struct's alignment is the maximum alignment of its fields.
+  </p>
+  <p>
+    The compiler inserts <strong>padding bytes</strong> between fields (and after the last
+    field) to satisfy alignment constraints. These bytes exist in memory but carry no data.
+  </p>
+
+  <div class="example">
+    <div class="example-label">Example: padding in action · <a href="/s/7lo5eypm" style="text-transform:none">try it</a></div>
+<pre class="cm-s-default"><code>struct Padded {
+    a: u8,   // 1 byte
+    b: u64,  // 8 bytes, align 8
+    c: u8,   // 1 byte
+}</code></pre>
+    <p>
+      Naively, this would be 10 bytes. But <code>b</code> needs 8-byte alignment, so the
+      compiler inserts 7 bytes of padding after <code>a</code>. The struct ends up
+      <strong>24 bytes</strong> under <code>repr(C)</code>.
+    </p>
+    <p>
+      Rust's default (<code>repr(Rust)</code>) layout is free to reorder fields. The
+      compiler rearranges this to <code>[b, a, c, padding]</code> for a total of
+      <strong>16 bytes</strong>, which saves 8 bytes by grouping small fields together.
+    </p>
+<div class="layout-diagram">repr(Rust) layout — 16 bytes, align 8
+offset  size  field
+0x00       8  b: u64
+0x08       1  a: u8
+0x09       1  c: u8
+0x0a       6  padding</div>
+  </div>
+
+  <h3>Layout representations</h3>
+
+  <table>
+    <tr><th>Attribute</th><th>Behavior</th></tr>
+    <tr><td><code>#[repr(Rust)]</code></td><td>Default. Compiler may reorder fields, add padding. Layout is not stable across compiler versions.</td></tr>
+    <tr><td><code>#[repr(C)]</code></td><td>Fields laid out in declaration order, with C-compatible padding rules. Deterministic and stable.</td></tr>
+    <tr><td><code>#[repr(transparent)]</code></td><td>Single-field struct has the same layout as that field. Used for newtypes.</td></tr>
+    <tr><td><code>#[repr(packed)]</code></td><td>Remove padding (alignment = 1). Can cause unaligned access; fields may not be borrowable.</td></tr>
+    <tr><td><code>#[repr(align(N))]</code></td><td>Force minimum alignment to N. Can be combined with <code>repr(C)</code>.</td></tr>
+    <tr><td><code>#[repr(u8)]</code>, etc.</td><td>For enums: sets the discriminant integer type explicitly.</td></tr>
+  </table>
+
+  <h2>Enum layout</h2>
+
+  <p>
+    Enums need to store which variant is active (the <strong>discriminant</strong>) alongside
+    the variant's data. The compiler uses two strategies:
+  </p>
+
+  <h3><span class="badge tagged">Tagged</span> <span class="dim">explicit discriminant</span></h3>
+
+  <p>
+    In the straightforward approach, the compiler reserves extra bytes for a tag that
+    records which variant is active. The tag size depends on how many variants the enum
+    has: 1 byte covers up to 256 variants, 2 bytes cover more, and so on.
+  </p>
+
+  <div class="example">
+    <div class="example-label">Example: tagged enum · <a href="/s/7xaaoaom" style="text-transform:none">try it</a></div>
+<pre class="cm-s-default"><code>enum Shape {
+    Circle(f64),       // radius
+    Rect(f64, f64),    // width, height
+    Point,
+}</code></pre>
+    <p>
+      3 variants, so the tag is 1 byte. The largest variant, <code>Rect</code>, holds
+      two <code>f64</code>s = 16 bytes. Total size: <strong>24 bytes</strong>
+      (1 tag + 7 padding + 16 data).
+    </p>
+  </div>
+
+  <h3><span class="badge niche">Niche optimized</span> <span class="dim">zero-cost discrimination</span></h3>
+
+  <p>
+    This is the optimization that gives nichy its name. Some types have
+    <strong>invalid bit patterns</strong>, meaning values the type can never hold. These
+    unused patterns are called <em>niches</em>, and the compiler can repurpose them to
+    encode the discriminant, eliminating the extra tag entirely.
+  </p>
+
+  <h2>Niche optimization in detail</h2>
+
+  <p>
+    A niche is a range of bit patterns that a type guarantees it will never use as a valid
+    value. The compiler tracks niches through the type system and exploits them when building
+    enum layouts.
+  </p>
+
+  <h3>Where niches come from</h3>
+
+  <table>
+    <tr><th>Type</th><th>Niche</th><th>Reason</th></tr>
+    <tr><td><code>bool</code></td><td>254 niches (values <code>2..=255</code>)</td><td>Only <code>0</code> and <code>1</code> are valid</td></tr>
+    <tr><td><code>&amp;T</code>, <code>&amp;mut T</code></td><td>1 niche (value <code>0</code>)</td><td>References are never null</td></tr>
+    <tr><td><code>NonZeroU32</code>, etc.</td><td>1 niche (value <code>0</code>)</td><td>Guaranteed non-zero by construction</td></tr>
+    <tr><td><code>Box&lt;T&gt;</code>, <code>NonNull&lt;T&gt;</code></td><td>1 niche (value <code>0</code>)</td><td>Non-null pointers</td></tr>
+    <tr><td><code>char</code></td><td>Niches above <code>0x10FFFF</code></td><td>Unicode scalar values cap at U+10FFFF</td></tr>
+    <tr><td><code>Ordering</code></td><td>253 niches</td><td>Only <code>-1</code>, <code>0</code>, <code>1</code> are valid</td></tr>
+  </table>
+
+  <p>
+    Niches <strong>propagate upward</strong> through structs. If a struct contains a
+    <code>bool</code>, the struct itself exposes those 254 niches to any enum wrapping it.
+  </p>
+
+  <h3>The classic example: <code>Option&lt;&amp;T&gt;</code></h3>
+
+  <div class="example">
+    <div class="example-label">Example: zero-cost Option · <a href="/s/hslf6lbq" style="text-transform:none">try it</a></div>
+<pre class="cm-s-default"><code>type Ref = Option&lt;&amp;u64&gt;;</code></pre>
+    <p>
+      A reference <code>&amp;u64</code> is 8 bytes and is never null. <code>Option</code>
+      needs to distinguish <code>Some</code> from <code>None</code>, which is only
+      2 variants, so it needs just 1 niche value.
+    </p>
+    <p>
+      The compiler stores <code>None</code> as the all-zeros bit pattern (a null pointer),
+      and <code>Some(r)</code> as the raw pointer value of <code>r</code>, with no extra
+      tag byte needed. As a result, <code>Option&lt;&amp;u64&gt;</code> is
+      <strong>8 bytes</strong>, the same size as a bare <code>&amp;u64</code>.
+    </p>
+<div class="layout-diagram">Option&lt;&amp;u64&gt; — 8 bytes, align 8 (niche optimized)
+Some(&amp;u64): the pointer value (always non-zero)
+None:       0x0000000000000000</div>
+  </div>
+
+  <h3>Multiple niche values</h3>
+
+  <p>
+    When a type has more niches than an enum needs, the extras are <strong>remaining
+    niches</strong> that propagate further outward. For example, <code>bool</code>
+    has 254 niches. <a href="/s/pcr2xioc"><code>Option&lt;bool&gt;</code></a> uses one (storing <code>None</code>
+    as the byte value <code>2</code>), leaving 253. So
+    <a href="/s/zzibdk6u"><code>Option&lt;Option&lt;bool&gt;&gt;</code></a> consumes one more and is still just
+    <strong>1 byte</strong>. An enum with up to 254 data-less variants wrapping a
+    <code>bool</code> can fit in a single byte the same way.
+  </p>
+  <p>
+    This stacking works as long as niches remain. Types with only a single niche,
+    like <code>&amp;T</code>, support one layer of <code>Option</code> at no cost,
+    but <a href="/s/h2mntoy4"><code>Option&lt;Option&lt;&amp;T&gt;&gt;</code></a> exhausts the supply and
+    requires a tag.
+  </p>
+
+  <h3>When niche optimization cannot apply</h3>
+
+  <ul>
+    <li><strong>No niches available.</strong> Types like <code>u32</code> or <code>f64</code>
+      use all their bit patterns, so wrapping them in <code>Option</code> requires a tag byte.</li>
+    <li><strong>Not enough niches.</strong> One variant is stored directly; every additional
+      variant needs a niche. If there aren't enough, the enum falls back to tagged layout.</li>
+    <li><strong><code>#[repr(C)]</code> or <code>#[repr(u8)]</code> enums.</strong>
+      Explicit representation attributes force a predictable tagged layout.</li>
+  </ul>
+
+  <h3>Why this matters</h3>
+
+  <p>
+    Niche optimization is one of Rust's most impactful zero-cost abstractions. It means
+    <code>Option&lt;Box&lt;T&gt;&gt;</code>, <code>Option&lt;&amp;T&gt;</code>, and
+    <code>Option&lt;NonZeroU32&gt;</code> are all the same size as the inner type.
+    This removes the performance penalty for using <code>Option</code> instead of nullable
+    pointers, making safe APIs free at the machine level.
+  </p>
+  <p>
+    The optimization is applied transitively. A
+    <code>Vec&lt;Option&lt;&amp;T&gt;&gt;</code> stores its elements at 8 bytes each
+    (on 64-bit), the same density as a <code>Vec&lt;*const T&gt;</code> with a manual
+    null convention.
+  </p>
+
+  <h2>Common misunderstandings</h2>
+
+  <p>
+    Niche optimization is well-known among Rust programmers, but its limitations
+    are often misunderstood. Here are cases where it might <em>seem</em> like
+    niche optimization should help, but doesn't.
+  </p>
+
+  <h3>Niches can't encode variant data</h3>
+
+  <p>
+    When the compiler uses a niche value to represent a variant, it uses that
+    specific bit pattern <em>as the discriminant</em>. This only works for
+    variants that carry no data of their own, or whose data fits elsewhere in
+    the enum's payload
+    (<a href="https://github.com/rust-lang/rust/issues/46213">#46213</a>). In the common case, such as <code>Option::None</code>,
+    the niche-encoded variant has no fields at all, which is why the
+    optimization works so cleanly.
+  </p>
+
+  <div class="example">
+    <div class="example-label">Example: two data-carrying variants · <a href="/s/mxqplgu6" style="text-transform:none">try it</a></div>
+<pre class="cm-s-default"><code>enum Either {
+    Left(NonNull&lt;u8&gt;),
+    Right(NonNull&lt;u8&gt;),
+}</code></pre>
+    <p>
+      Both <code>NonNull</code> fields have a niche at null. But if the compiler
+      used null to mean "this is <code>Right</code>", there would be no room
+      to store <code>Right</code>'s actual pointer value because the null pattern
+      occupies the space where that pointer would need to go. The enum
+      requires a tag: <strong>16 bytes</strong>, not 8.
+    </p>
+<div class="layout-diagram">Either — 16 bytes, align 8 (tagged)
+offset  size  purpose
+0x00       8  tag (1 byte) + padding (7 bytes)
+0x08       8  variant data: NonNull&lt;u8&gt;</div>
+    <p>
+      Compare with <code>Option&lt;NonNull&lt;u8&gt;&gt;</code>, where
+      <code>None</code> carries no data: null represents it perfectly.
+      <strong>8 bytes</strong>, same as a bare <code>NonNull&lt;u8&gt;</code>.
+    </p>
+    <p>
+      Note that pointers are word-aligned, so their low bits are always zero,
+      yet the compiler does not pack discriminants into those spare
+      bits either. The niche system tracks <strong>value-range</strong>
+      constraints ("this field is never zero") rather than <strong>bit-level</strong>
+      properties derived from alignment. The only niche each
+      <code>NonNull</code> exposes is the single null value.
+    </p>
+  </div>
+
+  <h3>Padding bytes are not niches</h3>
+
+  <p>
+    Struct padding exists for alignment but is not tracked as niche space.
+    Even when a struct has trailing padding that could physically hold a
+    discriminant, the compiler doesn't repurpose it
+    (<a href="https://github.com/rust-lang/rust/issues/109555">#109555</a>).
+    Niches come from <strong>type-level value constraints</strong> (like
+    "references are never null") rather than from incidental unused bytes in
+    the memory layout.
+  </p>
+
+  <div class="example">
+    <div class="example-label">Example: padding can't be reused · <a href="/s/czqb6ubd" style="text-transform:none">try it</a></div>
+<pre class="cm-s-default"><code>type A = Option&lt;WithNiche&gt;;
+type B = Option&lt;WithoutNiche&gt;;
+
+struct WithNiche {
+    ptr: NonNull&lt;u64&gt;,
+    flag: u8,
+    // 7 bytes of trailing padding
+}
+
+struct WithoutNiche {
+    ptr: *mut u64,
+    flag: u8,
+    // 7 bytes of trailing padding
+}</code></pre>
+    <p>
+      Both structs are 16 bytes with 7 bytes of trailing padding.
+      Those 7 bytes won't be used for <code>Option</code>'s discriminant
+      in either case. But <code>WithNiche</code> has a niche from
+      <code>NonNull</code> (the null pointer), so
+      <code>Option&lt;WithNiche&gt;</code> stays at <strong>16 bytes</strong>.
+      <code>WithoutNiche</code> has no niche, so <code>Option&lt;WithoutNiche&gt;</code>
+      grows to <strong>24 bytes</strong>.
+    </p>
+  </div>
+
+  <h3>Niche optimization only applies when it reduces size</h3>
+
+  <p>
+    Even when an enum's variants contain types with usable niches, the
+    compiler only uses niche encoding when it makes the overall layout
+    smaller. If the discriminant already fits in alignment padding, niche
+    encoding produces the same size and the compiler picks a tagged layout
+    instead. Whether niche optimization applies can therefore depend on the
+    target triple.
+  </p>
+
+  <div class="example">
+    <div class="example-label">Example: target-dependent niche · <a href="/s/hvmynq2v" style="text-transform:none">try on x86_64</a> · <a href="/s/lazi4mzh" style="text-transform:none">try on i686</a></div>
+<pre class="cm-s-default"><code>enum Expr {
+    Literal(f64),
+    BinOp { op: char, lhs: Box&lt;f64&gt;, rhs: Box&lt;f64&gt; },
+    Neg(Box&lt;f64&gt;),
+}</code></pre>
+    <p>
+      On <strong>x86_64</strong>, <code>Box</code> is 8-byte aligned. The
+      <code>BinOp</code> variant has two 8-byte pointers and a 4-byte
+      <code>char</code>, totalling <strong>24 bytes</strong> after
+      alignment. The 4-byte slot holding <code>op</code> has 3 unused bytes
+      next to it, which fit a 1-byte discriminant. Niche encoding can't
+      shrink the enum below 24 bytes either, so the compiler emits a
+      <span class="badge tagged">tagged</span> layout at
+      <strong>24 bytes</strong>.
+    </p>
+    <p>
+      On <strong>i686</strong>, <code>Box</code> is 4-byte aligned and
+      <code>BinOp</code> is <strong>12 bytes</strong> (three 4-byte slots,
+      no padding). A tagged layout would grow to <strong>16 bytes</strong>
+      to fit a 4-byte discriminant. Niche encoding places the discriminant
+      in <code>Box</code>'s null niche and keeps the enum at
+      <strong>12 bytes</strong>, 4 bytes smaller, marked
+      <span class="badge niche">niche optimized</span>.
+    </p>
+  </div>
+
+  <h3>What the niche system actually tracks</h3>
+
+  <p>
+    The compiler tracks niches as <strong>value ranges that a type guarantees
+    it will never use</strong>. This is a type-level property rather than a
+    layout-level one:
+  </p>
+
+  <ul>
+    <li><code>NonNull&lt;T&gt;</code> &rarr; value <code>0</code> is invalid (1 niche), regardless of <code>T</code>'s alignment</li>
+    <li><code>bool</code> &rarr; values <code>2..=255</code> are invalid (254 niches)</li>
+    <li><code>&amp;T</code> &rarr; value <code>0</code> is invalid (1 niche)</li>
+    <li>Alignment-derived bit constraints &rarr; <strong>not tracked</strong></li>
+    <li>Padding bytes &rarr; <strong>not tracked</strong></li>
+  </ul>
+
+  <p>
+    If you want to verify whether niche optimization applies to your types,
+    paste them into the <a href="/">visualizer</a>. A
+    <span class="badge niche">niche optimized</span> badge means the compiler
+    found usable niches; a <span class="badge tagged">tagged</span> badge means
+    it fell back to an explicit discriminant.
+  </p>
+
+  <h2>Related articles</h2>
+
+  <ul class="reading-list">
+    <li>
+      <a href="https://doc.rust-lang.org/reference/type-layout.html">Type Layout</a>
+      <span class="dim"> &mdash; The Rust Reference</span>
+      <p>The authoritative specification for how Rust lays out types in memory, covering
+        <code>repr(Rust)</code>, <code>repr(C)</code>, primitive representations, and alignment rules.</p>
+    </li>
+    <li>
+      <a href="https://www.0xatticus.com/posts/understanding_rust_niche/">Niche Optimizations in Rust</a>
+      <span class="dim"> &mdash; 0xAtticus</span>
+      <p>Deep dive into how the compiler identifies niches and encodes enum discriminants,
+        with examples traced through LLVM IR and rustc source.</p>
+    </li>
+    <li>
+      <a href="https://doc.rust-lang.org/nomicon/repr-rust.html">Data Representation in Rust</a>
+      <span class="dim"> &mdash; The Rustonomicon</span>
+      <p>Practical guide to <code>repr(Rust)</code>, <code>repr(C)</code>, and other representations,
+        oriented toward unsafe code and FFI.</p>
+    </li>
+    <li>
+      <a href="https://doc.rust-lang.org/std/option/index.html#representation">Option Representation</a>
+      <span class="dim"> &mdash; std docs</span>
+      <p>Documents the guaranteed null-pointer optimization for <code>Option&lt;&amp;T&gt;</code>,
+        <code>Option&lt;Box&lt;T&gt;&gt;</code>, and similar types.</p>
+    </li>
+    <li>
+      <a href="https://www.youtube.com/watch?v=7_o-YRxf_cc">Visualizing Memory Layout of Rust's Data Types</a>
+      <span class="dim"> &mdash; YouTube</span>
+      <p>Visual walkthrough of how Rust's common types (structs, enums, references, trait objects)
+        are laid out in stack and heap memory.</p>
+    </li>
+    <li>
+      <a href="https://nnethercote.github.io/perf-book/type-sizes.html">Type Sizes</a>
+      <span class="dim"> &mdash; The Rust Performance Book</span>
+      <p>Actionable advice on shrinking types to improve cache performance, including
+        <code>#[repr(u8)]</code> enums, <code>Box</code>-ing large variants, and field reordering.</p>
+    </li>
+    <li>
+      <a href="https://jpfennell.com/posts/enum-type-size/">A Surprising Enum Size Optimization</a>
+      <span class="dim"> &mdash; James Fennell</span>
+      <p>How the Rust compiler reuses tag bits from nested enums to reduce memory overhead,
+        going beyond the well-known niche optimization.</p>
+    </li>
+  </ul>
+
+  <footer id="footer" class="footer">{{FOOTER}}</footer>
+</div>
+
+<script src="/common.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/addon/mode/simple.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/addon/runmode/runmode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.19/mode/rust/rust.min.js"></script>
+<script>
+document.querySelectorAll('pre.cm-s-default code').forEach(block => {
+  const text = block.textContent;
+  block.innerHTML = '';
+  CodeMirror.runMode(text, 'text/x-rustsrc', block);
+});
+</script>
+</body>
+</html>

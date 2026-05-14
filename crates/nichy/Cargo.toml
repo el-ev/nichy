@@ -1,0 +1,12 @@
+[package]
+name = "nichy"
+version = "0.1.3"
+edition = "2024"
+description = "Rust type memory layout and niche optimization types"
+license = "MIT"
+repository = "https://github.com/el-ev/nichy"
+keywords = ["rust", "layout", "niche", "memory", "type-layout"]
+categories = ["development-tools", "data-structures"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

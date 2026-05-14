@@ -1,0 +1,4 @@
+site_name = "niche.rs"
+author = "iris"
+listen = ["0.0.0.0:3873"]
+timeout_secs = 2.0

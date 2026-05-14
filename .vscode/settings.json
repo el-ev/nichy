@@ -1,0 +1,18 @@
+{
+    "rust-analyzer.server.extraEnv": {
+        "RUSTC": "${workspaceFolder}/bin/rustc",
+        "LD_LIBRARY_PATH": "${workspaceFolder}/rust/build/x86_64-unknown-linux-gnu/stage2/lib"
+    },
+    "rust-analyzer.cargo.sysroot": "rust/build/x86_64-unknown-linux-gnu/stage2",
+    "rust-analyzer.cargo.sysrootSrc": "rust/build/x86_64-unknown-linux-gnu/stage2/lib/rustlib/src/rust/library",
+    "rust-analyzer.cargo.buildScripts.useRustcWrapper": false,
+    "rust-analyzer.cargo.extraEnv": {
+        "RUSTC": "${workspaceFolder}/bin/rustc",
+        "LD_LIBRARY_PATH": "${workspaceFolder}/rust/build/x86_64-unknown-linux-gnu/stage2/lib"
+    },
+    "rust-analyzer.rustc.source": "rust/Cargo.toml",
+    "rust-analyzer.procMacro.server": "./bin/proc-macro-srv",
+    "nixEnvSelector.nixFile": "${workspaceFolder}/flake.nix",
+    "nixEnvSelector.useFlakes": true,
+    "nixEnvSelector.flakeShell": "default"
+}

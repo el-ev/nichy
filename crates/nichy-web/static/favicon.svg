@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="6" fill="#fafafa"/>
+  <!-- Memory layout blocks — soft pastels -->
+  <rect x="4" y="4" width="11" height="7" rx="1.5" fill="#a3c4e7"/>
+  <rect x="17" y="4" width="11" height="7" rx="1.5" fill="#f4a6b0"/>
+  <rect x="4" y="13" width="24" height="7" rx="1.5" fill="#8cc99e"/>
+  <rect x="4" y="22" width="16" height="6" rx="1.5" fill="#e5d98a"/>
+  <!-- Niche: striped block -->
+  <rect x="22" y="22" width="6" height="6" rx="1.5" fill="#fafafa" stroke="#e07060" stroke-width="1" stroke-dasharray="1.5 1"/>
+</svg>

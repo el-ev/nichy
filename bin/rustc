@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+RUST_ROOT="${RUST_ROOT:-$(cd "$(dirname "$0")/../rust" && pwd)}"
+SYSROOT="$RUST_ROOT/build/x86_64-unknown-linux-gnu/stage2"
+SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+if [ -z "$NICHY_EXTRA_LIBS" ]; then
+    CACHE="$SELF_DIR/.nichy-extra-libs"
+    if [ -f "$CACHE" ] && [ -d "$(cat "$CACHE")" ]; then
+        NICHY_EXTRA_LIBS="$(cat "$CACHE")"
+    elif command -v nix >/dev/null 2>&1; then
+        NICHY_EXTRA_LIBS="$(nix eval --raw 'nixpkgs#stdenv.cc.cc.lib' 2>/dev/null)/lib"
+        [ -d "$NICHY_EXTRA_LIBS" ] && printf '%s' "$NICHY_EXTRA_LIBS" > "$CACHE"
+    fi
+fi
+
+export LD_LIBRARY_PATH="$SYSROOT/lib:${NICHY_EXTRA_LIBS:+$NICHY_EXTRA_LIBS:}${LD_LIBRARY_PATH:-}"
+exec "$SYSROOT/bin/rustc" "$@"

@@ -1,0 +1,12 @@
+[build]
+rustc = "./bin/rustc"
+
+[env]
+RUST_ROOT = { value = "rust", relative = true }
+
+[target.x86_64-unknown-linux-gnu]
+rustflags = [
+    "-C", "link-arg=-Wl,-rpath,rust/build/x86_64-unknown-linux-gnu/stage2/lib",
+    "-C", "link-arg=-Wl,-rpath,rust/build/x86_64-unknown-linux-gnu/stage2/lib/rustlib/x86_64-unknown-linux-gnu/lib",
+    "-L", "rust/build/tmp/tarball/rustc-dev/x86_64-unknown-linux-gnu/image/lib/rustlib/x86_64-unknown-linux-gnu/lib",
+]
