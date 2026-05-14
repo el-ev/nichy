@@ -22,6 +22,7 @@
 }
 [data-theme="dark"] {
   --pad-bg: #2a2a3e; --pad-text: #555;
+  --niche-pad-bg: #2a5a4a; --niche-pad-text: #4ecca3;
   --table-sep: #1a1a2e; --highlight-bg: rgba(255,255,255,.06);
   --byte-border: transparent;
   --byte-hover-border: #fff; --type-name: #5dade2;
@@ -29,6 +30,7 @@
 
 [data-theme="light"] {
   --pad-bg: #e8e8e8; --pad-text: #999;
+  --niche-pad-bg: #a8dcc0; --niche-pad-text: #1a5a3a;
   --table-sep: #eee; --highlight-bg: rgba(0,0,0,.04);
   --byte-border: transparent;
   --byte-hover-border: #333; --type-name: #2471a3;
@@ -126,6 +128,7 @@ td.offset { color: var(--dim); } td.pad { color: var(--dim); font-style: italic;
   transition: opacity .12s, transform .12s; border: 2px solid var(--byte-border); flex: 1 1 0; min-width: 0; max-width: 30px; }
 .byte:hover { transform: scale(1.15); z-index: 1; }
 .byte.pad { background: var(--pad-bg); color: var(--pad-text); }
+.byte.niche-pad { background: var(--niche-pad-bg); color: var(--niche-pad-text); }
 .byte.niche-cell { background-image: repeating-linear-gradient(
   -45deg, transparent, transparent 3px, rgba(255,255,255,.25) 3px, rgba(255,255,255,.25) 5px); }
 .byte.dimmed { opacity: .3; }
@@ -424,12 +427,23 @@ function drawVariantBar(host, infoEl, variant, varIdx, total, di, nicheInfo, t) 
       labels[b] = {name:f.name,type:f.typename,color:FC[i%FC.length],field:'f'+i,niche:f.largest_niche||null};
   }
   let nicheUsage = null;
-  if (di.isNiche && nicheInfo && t?.discriminant?.untagged_variant === variant.name) {
-    const used = (t.variants?.length || 1) - 1;
-    const remaining = Number(t.remaining_niches ?? 0);
-    nicheUsage = { offset: nicheInfo.offset, size: nicheInfo.value_size, used, remaining };
+  let nicheDesc = null;
+  if (di.isNiche && nicheInfo) {
+    if (t?.discriminant?.untagged_variant === variant.name) {
+      const used = (t.variants?.length || 1) - 1;
+      const remaining = Number(t.remaining_niches ?? 0);
+      nicheUsage = { offset: nicheInfo.offset, size: nicheInfo.value_size, used, remaining };
+      nicheDesc = `niche region (${nicheInfo.value_type}, ${used} used, ${remaining} remaining)`;
+    } else {
+      const d = t?.discriminant;
+      if (d?.encoding === 'Niche' && varIdx >= d.niche_variants_start && varIdx <= d.niche_variants_end) {
+        // https://github.com/rust-lang/rust/blob/c85af1c5ed4187d9900d08a2ddee8b672b13fc27/compiler/rustc_abi/src/lib.rs#L1975
+        const nicheValue = BigInt(d.niche_start) + BigInt(varIdx - d.niche_variants_start);
+        nicheDesc = `niche = 0x${nicheValue.toString(16)} (${variant.name})`;
+      }
+    }
   }
-  host.append(buildBarDom(labels, total, infoEl, null, nicheInfo, nicheUsage));
+  host.append(buildBarDom(labels, total, infoEl, null, nicheInfo, nicheUsage, nicheDesc));
 }
 
 function buildLabels(fields, total, colorOff) {
@@ -459,7 +473,7 @@ function describeNiche(n) {
   return `${cnt} ${word} available (${n.value_type}, valid 0x${bigHex(n.valid_range_start)}..=0x${bigHex(n.valid_range_end)})`;
 }
 
-function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage) {
+function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage, nicheDesc) {
   const wrap = mk('div');
   const CELL_W = 33; // 30px cell + 3px gap
   const OFFSET_W = 26; // 22px label + 4px gap
@@ -478,9 +492,11 @@ function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage) {
     for (let b=rs;b<rowEnd;b++) {
       const cell = mk('div','byte');
       const L = labels[b];
+      const isNiche = b >= nicheStart && b < nicheEnd;
       if (L) { cell.style.backgroundColor=L.color; cell.dataset.field=L.field; cell.dataset.name=L.name; }
+      else if (isNiche) { cell.classList.add('niche-pad'); cell.dataset.field='niche'; cell.dataset.name=''; }
       else { cell.classList.add('pad'); cell.dataset.field='pad'; cell.dataset.name=''; }
-      if (b >= nicheStart && b < nicheEnd) cell.classList.add('niche-cell');
+      if (isNiche) cell.classList.add('niche-cell');
       cell.dataset.offset = b;
       allCells.push(cell);
       cells.append(cell);
@@ -497,6 +513,7 @@ function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage) {
   const onEnter = c => {
     const off = +c.dataset.offset;
     const L = labels[off];
+    const fi = c.dataset.field;
     if (L) {
       let line = `0x${hx(off)}: ${L.name} (${L.type})`;
       if (L.niche) {
@@ -506,12 +523,21 @@ function buildBarDom(labels, total, infoEl, tableRows, nicheInfo, nicheUsage) {
         }
       }
       infoEl.textContent = line;
-      const fi = c.dataset.field;
       allCells.forEach(x => {
         if (x.dataset.field===fi) x.classList.add('highlighted');
         else if (!x.classList.contains('pad')) x.classList.add('dimmed');
       });
       if (tableRows) tableRows.forEach((tr,i)=>{ if ('f'+i===fi) tr.classList.add('highlight'); });
+    } else if (fi === 'niche') {
+      let line = `0x${hx(off)}: `;
+      if (nicheDesc) line += nicheDesc;
+      else if (nicheInfo) line += `niche (${nicheInfo.value_type})`;
+      else line += 'niche';
+      infoEl.textContent = line;
+      allCells.forEach(x => {
+        if (x.dataset.field==='niche') x.classList.add('highlighted');
+        else x.classList.add('dimmed');
+      });
     } else {
       infoEl.textContent = `0x${hx(off)}: padding`;
       allCells.forEach(x=>{ if (!x.classList.contains('pad')) x.classList.add('dimmed'); });
