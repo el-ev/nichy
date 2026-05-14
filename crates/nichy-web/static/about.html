@@ -212,7 +212,7 @@ offset  size  field
     <tr><td><code>&amp;T</code>, <code>&amp;mut T</code></td><td>1 niche (value <code>0</code>)</td><td>References are never null</td></tr>
     <tr><td><code>NonZeroU32</code>, etc.</td><td>1 niche (value <code>0</code>)</td><td>Guaranteed non-zero by construction</td></tr>
     <tr><td><code>Box&lt;T&gt;</code>, <code>NonNull&lt;T&gt;</code></td><td>1 niche (value <code>0</code>)</td><td>Non-null pointers</td></tr>
-    <tr><td><code>char</code></td><td>Niches above <code>0x10FFFF</code></td><td>Unicode scalar values cap at U+10FFFF</td></tr>
+    <tr><td><code>char</code></td><td>Niches above <code>0x10FFFF</code><sup><a href="#fn-char-niche">*</a></sup></td><td>Unicode scalar values cap at U+10FFFF</td></tr>
     <tr><td><code>Ordering</code></td><td>253 niches</td><td>Only <code>-1</code>, <code>0</code>, <code>1</code> are valid</td></tr>
   </table>
 
@@ -411,8 +411,8 @@ struct WithoutNiche {
       <code>BinOp</code> is <strong>12 bytes</strong> (three 4-byte slots,
       no padding). A tagged layout would grow to <strong>16 bytes</strong>
       to fit a 4-byte discriminant. Niche encoding places the discriminant
-      in <code>Box</code>'s null niche and keeps the enum at
-      <strong>12 bytes</strong>, 4 bytes smaller, marked
+      in <code>char</code>'s unused values above <code>U+10FFFF</code><sup><a href="#fn-char-niche">*</a></sup> and
+      keeps the enum at <strong>12 bytes</strong>, 4 bytes smaller, marked
       <span class="badge niche">niche optimized</span>.
     </p>
   </div>
@@ -487,6 +487,11 @@ struct WithoutNiche {
         going beyond the well-known niche optimization.</p>
     </li>
   </ul>
+
+  <p id="fn-char-niche" style="font-size:.78rem; color:var(--dim); margin-top:2rem; border-top:1px solid var(--border); padding-top:.8rem;">
+    <sup>*</sup> The surrogate range <code>0xD800..=0xDFFF</code> is also invalid for <code>char</code>, but rustc
+    <a href="https://github.com/rust-lang/rust/blob/c85af1c5ed4187d9900d08a2ddee8b672b13fc27/compiler/rustc_ty_utils/src/layout.rs#L391-L397">currently does not use those values as niches</a>.
+  </p>
 
   <footer id="footer" class="footer">{{FOOTER}}</footer>
 </div>
