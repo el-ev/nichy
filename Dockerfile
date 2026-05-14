@@ -43,17 +43,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+RUN useradd --system --no-create-home --uid 65532 nichy
+
 WORKDIR /app
 
 COPY --from=nichy-builder /rust/build/x86_64-unknown-linux-gnu/stage2 /sysroot
 COPY --from=nichy-builder /nichy/target/release/nichy /app/nichy
 COPY --from=nichy-builder /nichy/target/release/nichy-web /app/nichy-web
 
+RUN mkdir -p /var/lib/nichy && chown nichy:nichy /var/lib/nichy
+
 ENV NICHY_SYSROOT=/sysroot
 ENV NICHY_BIN=/app/nichy
 ENV LD_LIBRARY_PATH="/sysroot/lib:/sysroot/lib/rustlib/x86_64-unknown-linux-gnu/lib"
 
-RUN printf 'listen = ["0.0.0.0:3873"]\n' > /app/nichy-web.toml
+RUN printf 'listen = ["0.0.0.0:3873"]\ndb_path = "/var/lib/nichy/nichy-web.db"\n' \
+    > /app/nichy-web.toml
+
+USER nichy
 
 EXPOSE 3873
 

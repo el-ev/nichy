@@ -1169,7 +1169,9 @@ name = "nichy-web"
 version = "0.1.3"
 dependencies = [
  "axum",
+ "libc",
  "nichy",
+ "proc-macro2",
  "rusqlite",
  "serde",
  "serde_json",

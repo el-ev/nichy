@@ -21,3 +21,7 @@ toml = "0.8"
 tower-http = { version = "0.6", features = ["cors", "limit"] }
 rusqlite = { version = "0.31", features = ["bundled"] }
 sha2 = "0.10"
+proc-macro2 = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

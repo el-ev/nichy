@@ -4,6 +4,42 @@ use axum::http::StatusCode;
 
 use nichy::TypeLayout;
 
+// Resource limits applied to the spawned nichy/rustc subprocess via pre_exec.
+// These are a backstop against a snippet that escapes the lexical scanner —
+// they don't isolate the filesystem on their own, but combined with the
+// non-root user in the Dockerfile they bound the blast radius of any rustc
+// path that reads files (include!, env!, etc.) or runs away on memory/CPU.
+//
+// Tuning notes:
+// - AS (virtual memory): the request body is capped at 64 KiB, so even
+//   pathological monomorphization stays well under 2 GiB.
+// - CPU: backstop for a hung rustc the wall-clock timeout fails to kill.
+// - FSIZE: rustc shouldn't write large files during analysis-only runs.
+// - CORE: prevent core dumps from leaking process memory to disk.
+#[cfg(unix)]
+const SUBPROCESS_RLIMITS: &[(libc::__rlimit_resource_t, libc::rlim_t)] = &[
+    (libc::RLIMIT_AS, 2 * 1024 * 1024 * 1024),
+    (libc::RLIMIT_CPU, 30),
+    (libc::RLIMIT_FSIZE, 64 * 1024 * 1024),
+    (libc::RLIMIT_CORE, 0),
+];
+
+#[cfg(unix)]
+fn apply_subprocess_sandbox() -> std::io::Result<()> {
+    for &(res, val) in SUBPROCESS_RLIMITS {
+        let rlim = libc::rlimit {
+            rlim_cur: val,
+            rlim_max: val,
+        };
+        // SAFETY: setrlimit with a valid resource id and rlimit pointer is
+        // async-signal-safe per POSIX and the Linux signal(7) man page.
+        if unsafe { libc::setrlimit(res, &rlim) } != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
 pub async fn run_nichy(
     bin: &str,
     extra_args: &[&str],
@@ -22,8 +58,8 @@ pub async fn run_nichy(
 
     let needs_stdin = stdin_data.is_some();
 
-    let mut child = tokio::process::Command::new(bin)
-        .args(&args)
+    let mut cmd = tokio::process::Command::new(bin);
+    cmd.args(&args)
         .stdin(if needs_stdin {
             std::process::Stdio::piped()
         } else {
@@ -31,14 +67,22 @@ pub async fn run_nichy(
         })
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
-        .kill_on_drop(true)
-        .spawn()
-        .map_err(|e| {
-            (
-                StatusCode::BAD_GATEWAY,
-                format!("failed to spawn nichy ({bin}): {e}"),
-            )
-        })?;
+        .kill_on_drop(true);
+
+    #[cfg(unix)]
+    // SAFETY: pre_exec runs in the forked child between fork() and execve();
+    // only async-signal-safe operations are permitted. setrlimit and a
+    // sigaction reset are both on the safe list.
+    unsafe {
+        cmd.pre_exec(apply_subprocess_sandbox);
+    }
+
+    let mut child = cmd.spawn().map_err(|e| {
+        (
+            StatusCode::BAD_GATEWAY,
+            format!("failed to spawn nichy ({bin}): {e}"),
+        )
+    })?;
 
     if let Some(data) = stdin_data {
         use tokio::io::AsyncWriteExt;

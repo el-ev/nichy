@@ -8,6 +8,7 @@ use axum::extract::{Json, Path, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
+use proc_macro2::{TokenStream, TokenTree};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
 use tower_http::cors::CorsLayer;
@@ -42,77 +43,53 @@ const FORBIDDEN_MACROS: &[&str] = &[
     "concat_idents",
 ];
 
+
 fn reject_forbidden_macros(code: &str) -> Result<(), String> {
-    let bytes = code.as_bytes();
-    let mut i = 0;
-    while i < bytes.len() {
-        let c = bytes[i];
+    let tokens: TokenStream = code
+        .parse()
+        .map_err(|e: proc_macro2::LexError| format!("could not tokenize input: {e}"))?;
+    scan_tokens(tokens, false).map(|_| ())
+}
 
-        if c == b'/' && bytes.get(i + 1) == Some(&b'/') {
-            i += 2;
-            while i < bytes.len() && bytes[i] != b'\n' {
-                i += 1;
-            }
-            continue;
-        }
-        // Block comments nest in Rust.
-        if c == b'/' && bytes.get(i + 1) == Some(&b'*') {
-            i += 2;
-            let mut depth = 1usize;
-            while i + 1 < bytes.len() && depth > 0 {
-                if bytes[i] == b'/' && bytes[i + 1] == b'*' {
-                    depth += 1;
-                    i += 2;
-                } else if bytes[i] == b'*' && bytes[i + 1] == b'/' {
-                    depth -= 1;
-                    i += 2;
-                } else {
-                    i += 1;
+fn scan_tokens(stream: TokenStream, mut in_use: bool) -> Result<bool, String> {
+    let mut iter = stream.into_iter().peekable();
+    while let Some(tt) = iter.next() {
+        match tt {
+            TokenTree::Ident(id) => {
+                let s = id.to_string();
+                if s == "use" {
+                    in_use = true;
+                    continue;
+                }
+                if !FORBIDDEN_MACROS.contains(&s.as_str()) {
+                    continue;
+                }
+                if in_use {
+                    return Err(format!(
+                        "identifier `{s}` is not allowed in a `use` statement",
+                    ));
+                }
+                let is_bang =
+                    matches!(iter.peek(), Some(TokenTree::Punct(p)) if p.as_char() == '!');
+                if is_bang {
+                    iter.next();
+                    if matches!(iter.peek(), Some(TokenTree::Group(_))) {
+                        return Err(format!("macro `{s}!` is not allowed"));
+                    }
                 }
             }
-            continue;
-        }
-        if c == b'"' {
-            i += 1;
-            while i < bytes.len() && bytes[i] != b'"' {
-                if bytes[i] == b'\\' && i + 1 < bytes.len() {
-                    i += 2;
-                } else {
-                    i += 1;
+            TokenTree::Punct(p) => {
+                if p.as_char() == ';' {
+                    in_use = false;
                 }
             }
-            i += 1;
-            continue;
-        }
-
-        if !c.is_ascii_alphabetic() && c != b'_' {
-            i += 1;
-            continue;
-        }
-        let start = i;
-        while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
-            i += 1;
-        }
-        let ident = &code[start..i];
-        if !FORBIDDEN_MACROS.contains(&ident) {
-            continue;
-        }
-        let mut j = i;
-        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
-            j += 1;
-        }
-        if j >= bytes.len() || bytes[j] != b'!' {
-            continue;
-        }
-        let mut k = j + 1;
-        while k < bytes.len() && bytes[k].is_ascii_whitespace() {
-            k += 1;
-        }
-        if k < bytes.len() && matches!(bytes[k], b'(' | b'[' | b'{') {
-            return Err(format!("macro `{ident}!` is not allowed"));
+            TokenTree::Group(g) => {
+                in_use = scan_tokens(g.stream(), in_use)?;
+            }
+            TokenTree::Literal(_) => {}
         }
     }
-    Ok(())
+    Ok(in_use)
 }
 
 static NICHY_BIN: LazyLock<String> =
@@ -633,6 +610,61 @@ mod tests {
             fn add(a: u32, b: u32) -> u32 { a + b }
         ";
         assert!(reject_forbidden_macros(code).is_ok());
+    }
+
+    #[test]
+    fn forbidden_rejects_through_raw_string() {
+        let code = "let _ = r#\"a\"b\"#;\ninclude!(\"x\");";
+        assert!(reject_forbidden_macros(code).is_err());
+    }
+
+    #[test]
+    fn forbidden_rejects_through_char_literal_quote() {
+        let code = "let _ = '\"';\ninclude!(\"x\");";
+        assert!(reject_forbidden_macros(code).is_err());
+    }
+
+    #[test]
+    fn forbidden_rejects_through_byte_string() {
+        let code = "let _ = b\"a\\\"b\";\nasm!(\"\");";
+        assert!(reject_forbidden_macros(code).is_err());
+    }
+
+    #[test]
+    fn forbidden_rejects_use_as_alias() {
+        assert!(reject_forbidden_macros("use std::include as foo;").is_err());
+        assert!(reject_forbidden_macros("use core::env as e;").is_err());
+    }
+
+    #[test]
+    fn forbidden_rejects_in_use_tree() {
+        assert!(reject_forbidden_macros("use std::{include};").is_err());
+        assert!(
+            reject_forbidden_macros("use std::{collections::HashMap, include_str, sync::Arc};")
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn forbidden_rejects_inside_macro_rules_body() {
+        let code = "macro_rules! sneak { () => { include!(\"/etc/passwd\") } }";
+        assert!(reject_forbidden_macros(code).is_err());
+    }
+
+    #[test]
+    fn forbidden_allows_normal_use_statements() {
+        assert!(reject_forbidden_macros("use std::collections::HashMap;").is_ok());
+        assert!(reject_forbidden_macros("use std::sync::{Arc, Mutex};").is_ok());
+    }
+
+    #[test]
+    fn forbidden_allows_method_or_field_named_like_macro() {
+        assert!(reject_forbidden_macros("fn main() { let x = S; x.include(1); }").is_ok());
+    }
+
+    #[test]
+    fn forbidden_rejects_unparseable_input() {
+        assert!(reject_forbidden_macros("let x = \"unterminated").is_err());
     }
 
     #[test]
