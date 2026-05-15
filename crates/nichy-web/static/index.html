@@ -115,6 +115,7 @@ table.fields td { padding: .3rem .5rem; border-bottom: 1px solid var(--table-sep
   overflow-wrap: break-word; word-break: break-all; }
 table.fields tr.highlight td { background: var(--highlight-bg); }
 td.offset { color: var(--dim); } td.pad { color: var(--dim); font-style: italic; }
+td.niche { color: var(--niche-pad-text); font-style: italic; }
 
 .bar-section { margin: .7rem 0; }
 .bar-label { font-size: .75rem; color: var(--dim); margin-bottom: .3rem; }
@@ -593,6 +594,28 @@ function emitGap(tbody, from, to, di) {
     if (afterDisc < to) {
       const pr=document.createElement('tr');
       pr.innerHTML=`<td class="offset">0x${hx(afterDisc)}</td><td class="pad">${to-afterDisc}</td><td class="pad">padding</td>`;
+      tbody.append(pr);
+    }
+  } else if (di && di.isNiche && di.nicheOff>=0) {
+    const nS = di.nicheOff, nE = di.nicheOff + di.nicheSize;
+    const oS = Math.max(from, nS), oE = Math.min(to, nE);
+    if (oS < oE) {
+      if (from < oS) {
+        const pr=document.createElement('tr');
+        pr.innerHTML=`<td class="offset">0x${hx(from)}</td><td class="pad">${oS-from}</td><td class="pad">padding</td>`;
+        tbody.append(pr);
+      }
+      const nr=document.createElement('tr');
+      nr.innerHTML=`<td class="offset">0x${hx(oS)}</td><td class="niche">${oE-oS}</td><td class="niche">niche</td>`;
+      tbody.append(nr);
+      if (oE < to) {
+        const pr=document.createElement('tr');
+        pr.innerHTML=`<td class="offset">0x${hx(oE)}</td><td class="pad">${to-oE}</td><td class="pad">padding</td>`;
+        tbody.append(pr);
+      }
+    } else {
+      const pr=document.createElement('tr');
+      pr.innerHTML=`<td class="offset">0x${hx(from)}</td><td class="pad">${to-from}</td><td class="pad">padding</td>`;
       tbody.append(pr);
     }
   } else {
