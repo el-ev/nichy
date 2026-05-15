@@ -116,7 +116,12 @@ fn footer_html(cfg: &SiteConfig) -> String {
 
     let mut parts = vec![format!("{nichy_part} · {rustc_part}")];
     if let Some(author) = &cfg.author {
-        parts.push(format!("by {}", html_escape(author)));
+        let name = html_escape(author);
+        let rendered = match &cfg.author_url {
+            Some(url) => format!("<a href=\"{}\">{name}</a>", html_escape(url)),
+            None => name,
+        };
+        parts.push(format!("by {rendered}"));
     }
     parts.join(" · ")
 }
@@ -720,6 +725,28 @@ mod tests {
         let cfg = SiteConfig::default();
         let footer = footer_html(&cfg);
         assert!(!footer.contains(" by "));
+    }
+
+    #[test]
+    fn footer_html_links_author_when_author_url_set() {
+        let cfg = SiteConfig {
+            author: Some("alice".into()),
+            author_url: Some("https://example.com/alice".into()),
+            ..Default::default()
+        };
+        let footer = footer_html(&cfg);
+        assert!(footer.contains("by <a href=\"https://example.com/alice\">alice</a>"));
+    }
+
+    #[test]
+    fn footer_html_escapes_author_url() {
+        let cfg = SiteConfig {
+            author: Some("alice".into()),
+            author_url: Some("https://example.com/?q=\"x\"".into()),
+            ..Default::default()
+        };
+        let footer = footer_html(&cfg);
+        assert!(footer.contains("href=\"https://example.com/?q=&quot;x&quot;\""));
     }
 
     #[test]

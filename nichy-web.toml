@@ -1,4 +1,5 @@
 site_name = "niche.rs"
 author = "iris"
+author_url = "https://github.com/el-ev"
 listen = ["0.0.0.0:3873"]
 timeout_secs = 2.0

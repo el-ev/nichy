@@ -6,6 +6,8 @@ pub struct SiteConfig {
     pub site_name: Option<String>,
     #[serde(default)]
     pub author: Option<String>,
+    #[serde(default)]
+    pub author_url: Option<String>,
     #[serde(default = "default_listen")]
     pub listen: Vec<String>,
     #[serde(default = "default_timeout_secs")]
@@ -19,6 +21,7 @@ impl Default for SiteConfig {
         Self {
             site_name: None,
             author: None,
+            author_url: None,
             listen: default_listen(),
             timeout_secs: default_timeout_secs(),
             db_path: default_db_path(),
