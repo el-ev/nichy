@@ -49,13 +49,16 @@ const PLAIN: Palette = Palette {
 
 pub struct Ctx {
     color: bool,
+    #[allow(dead_code)]
+    verbose: bool,
     palette: &'static Palette,
 }
 
 impl Ctx {
-    pub fn new(color: bool) -> Self {
+    pub fn new(color: bool, verbose: bool) -> Self {
         Self {
             color,
+            verbose,
             palette: if color { &ANSI } else { &PLAIN },
         }
     }
@@ -171,7 +174,30 @@ fn render_enum(out: &mut String, el: &EnumLayout, ctx: &Ctx) {
     render_discriminant_info(out, el, ctx);
     render_niche_detail(out, el, ctx);
     for (i, v) in el.variants.iter().enumerate() {
-        render_variant(out, v, i, ctx);
+        render_variant(out, v, i, el, ctx);
+    }
+}
+
+fn variant_tag_suffix(idx: usize, v: &VariantLayout, el: &EnumLayout) -> Option<String> {
+    match &el.discriminant {
+        Some(DiscriminantInfo::Direct { .. }) => v.discr_value.map(|d| format!("tag = 0x{d:x}")),
+        Some(DiscriminantInfo::Niche {
+            untagged_variant,
+            niche_start,
+            niche_variants_start,
+            niche_variants_end,
+            ..
+        }) => {
+            if &v.name == untagged_variant {
+                Some("untagged".into())
+            } else if idx >= *niche_variants_start && idx <= *niche_variants_end {
+                let nv = niche_start.wrapping_add((idx - niche_variants_start) as u128);
+                Some(format!("niche = 0x{nv:x}"))
+            } else {
+                None
+            }
+        }
+        None => None,
     }
 }
 
@@ -224,13 +250,16 @@ fn render_niche_detail(out: &mut String, el: &EnumLayout, ctx: &Ctx) {
     );
 }
 
-fn render_variant(out: &mut String, v: &VariantLayout, idx: usize, ctx: &Ctx) {
+fn render_variant(out: &mut String, v: &VariantLayout, idx: usize, el: &EnumLayout, ctx: &Ctx) {
     let p = ctx.palette;
     let fc = ctx.fc(idx);
+    let tag = variant_tag_suffix(idx, v, el)
+        .map(|s| format!(" {}[{s}]{}", p.dim, p.reset))
+        .unwrap_or_default();
     if !v.fields.is_empty() {
         let _ = write!(
             out,
-            "\n  {}{}{}{}: {}{} bytes{}\n",
+            "\n  {}{}{}{}: {}{} bytes{}{tag}\n",
             fc, p.bold, v.name, p.reset, p.dim, v.size, p.reset
         );
         for f in &v.fields {
@@ -243,13 +272,13 @@ fn render_variant(out: &mut String, v: &VariantLayout, idx: usize, ctx: &Ctx) {
     } else if v.size > 0 {
         let _ = write!(
             out,
-            "\n  {}{}{}{}: {}{} bytes, opaque{}\n",
+            "\n  {}{}{}{}: {}{} bytes, opaque{}{tag}\n",
             fc, p.bold, v.name, p.reset, p.dim, v.size, p.reset
         );
     } else {
         let _ = write!(
             out,
-            "\n  {}{}{}{} {}(unit){}\n",
+            "\n  {}{}{}{} {}(unit){}{tag}\n",
             fc, p.bold, v.name, p.reset, p.dim, p.reset
         );
     }
@@ -361,7 +390,97 @@ mod tests {
     use super::*;
 
     fn ctx() -> Ctx {
-        Ctx::new(false)
+        Ctx::new(false, false)
+    }
+
+    fn enum_layout_tagged(disc: u128) -> EnumLayout {
+        EnumLayout {
+            strategy: EnumStrategy::Tagged {
+                discriminant_size: 4,
+            },
+            remaining_niches: None,
+            variants: vec![VariantLayout {
+                name: "Lit".into(),
+                size: 16,
+                alignment: 8,
+                fields: vec![FieldLayout {
+                    name: "0".into(),
+                    typename: "f64".into(),
+                    offset: 8,
+                    size: 8,
+                    alignment: 8,
+                    children: vec![],
+                    largest_niche: None,
+                }],
+                discr_value: Some(disc),
+            }],
+            niche: None,
+            discriminant: Some(DiscriminantInfo::Direct {
+                tag_field_index: 0,
+                tag_offset: 0,
+                tag_size: 4,
+            }),
+        }
+    }
+
+    #[test]
+    fn tagged_shows_tag_value_by_default() {
+        let tl = TypeLayout {
+            name: "E".into(),
+            size: 24,
+            alignment: 8,
+            hover_info: None,
+            largest_niche: None,
+            kind: TypeLayoutKind::Enum(enum_layout_tagged(0x2)),
+        };
+        let out = render_type_layout(&tl, &ctx());
+        assert!(out.contains("[tag = 0x2]"), "expected tag suffix: {out}");
+    }
+
+    #[test]
+    fn niche_optimized_shows_per_variant_values_by_default() {
+        let tl = TypeLayout {
+            name: "Opt".into(),
+            size: 8,
+            alignment: 8,
+            hover_info: None,
+            largest_niche: None,
+            kind: TypeLayoutKind::Enum(EnumLayout {
+                strategy: EnumStrategy::NicheOptimized {
+                    savings: 8,
+                    tagged_size: 16,
+                },
+                remaining_niches: Some(0),
+                variants: vec![
+                    VariantLayout {
+                        name: "Some".into(),
+                        size: 8,
+                        alignment: 8,
+                        fields: vec![],
+                        discr_value: None,
+                    },
+                    VariantLayout {
+                        name: "None".into(),
+                        size: 0,
+                        alignment: 1,
+                        fields: vec![],
+                        discr_value: None,
+                    },
+                ],
+                niche: None,
+                discriminant: Some(DiscriminantInfo::Niche {
+                    tag_field_index: 0,
+                    tag_offset: 0,
+                    untagged_variant: "Some".into(),
+                    niche_start: 0,
+                    niche_variants_start: 1,
+                    niche_variants_end: 1,
+                }),
+            }),
+        };
+        let out = render_type_layout(&tl, &ctx());
+        assert!(out.contains("[untagged]"), "expected untagged on Some: {out}");
+        assert!(out.contains("[niche = 0x0]"), "expected niche on None: {out}");
     }
 
     #[test]

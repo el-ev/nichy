@@ -23,6 +23,7 @@ fn main() {
     let mut target: Option<String> = None;
     let mut json_output = false;
     let mut show_footer = true;
+    let mut verbose = false;
     let mut timeout: Option<f64> = None;
 
     let mut i = 1;
@@ -32,6 +33,7 @@ fn main() {
             "--color" => color = true,
             "--json" => json_output = true,
             "--no-footer" => show_footer = false,
+            "-v" | "--verbose" => verbose = true,
             "--serve" => serve::run(),
             "--timeout" => {
                 i += 1;
@@ -149,7 +151,7 @@ fn main() {
             if json_output {
                 println!("{}", serde_json::to_string(&layouts).unwrap());
             } else {
-                let ctx = render::Ctx::new(color);
+                let ctx = render::Ctx::new(color, verbose);
                 for tl in &layouts {
                     print!("{}", render::render_type_layout(tl, &ctx));
                 }
