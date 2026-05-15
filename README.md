@@ -35,7 +35,7 @@ nichy -t 'usize' --target aarch64-unknown-linux-gnu
 
 ### Web
 
-The web service serves a browser UI (code editor, byte-level layout visualization, dark/light themes) and a JSON API:
+The web service serves a browser UI and a JSON API:
 
 | route | purpose |
 | --- | --- |
@@ -50,7 +50,7 @@ The web service serves a browser UI (code editor, byte-level layout visualizatio
 cargo run -p nichy-web    # serves on 127.0.0.1:3873
 ```
 
-State is stored in a single SQLite file in WAL mode. Configuration is in `nichy-web.toml`:
+Configuration is in `nichy-web.toml`:
 
 ```toml
 site_name = "niche.rs"
@@ -59,11 +59,12 @@ timeout_secs = 2.0
 db_path = "nichy-web.db"
 ```
 
-The cache is an LRU bounded at 256 entries. Shortlink ids are prefixes of a SHA-256 over the snippet contents, starting at 8 characters and growing on prefix collisions. Snippets are retained indefinitely.
-
 ## Building
 
-nichy requires a locally-built stage 2 `rustc` — it cannot be compiled with a stable or prebuilt nightly toolchain.
+nichy requires a locally-built stage 2 `rustc`. 
+
+It is not very recommended to build `nichy` locally because building `rustc` is slow and takes a lot of disk space.
+Use the online instance at [niche.rs](https://niche.rs) if you want to analyze short code snippets.
 
 ### 1. Bootstrap rustc
 
@@ -88,8 +89,6 @@ cargo build --release -p nichy-cli -p nichy-web   # release
 The workspace `.cargo/config.toml` and `bin/rustc` wrapper handle sysroot and library paths automatically.
 
 ### Docker
-
-Two-stage build — the rustc toolchain image is cached separately:
 
 ```sh
 docker build -f Dockerfile.rust -t nichy-rust:main .   # once, or on rustc bump
