@@ -48,11 +48,19 @@ pub enum Outcome<'a> {
         target: Option<&'a str>,
         is_type_expr: bool,
     },
-    Forbidden { is_type_expr: bool },
-    Timeout { is_type_expr: bool },
-    AnalysisError { is_type_expr: bool },
+    Forbidden {
+        is_type_expr: bool,
+    },
+    Timeout {
+        is_type_expr: bool,
+    },
+    AnalysisError {
+        is_type_expr: bool,
+    },
     BadRequest,
-    InternalError { is_type_expr: bool },
+    InternalError {
+        is_type_expr: bool,
+    },
 }
 
 pub struct Stats {
@@ -79,14 +87,16 @@ impl Stats {
 
     pub fn record(&self, outcome: Outcome<'_>) {
         let now = unix_now();
-        let mut updates: Vec<(&'static str, i64)> = vec![
-            ("total_requests", 1),
-            ("last_request_unix", now as i64),
-        ];
+        let mut updates: Vec<(&'static str, i64)> =
+            vec![("total_requests", 1), ("last_request_unix", now as i64)];
 
         let mut bump_target: Option<String> = None;
         let mode = match outcome {
-            Outcome::Success { types_count, target, is_type_expr } => {
+            Outcome::Success {
+                types_count,
+                target,
+                is_type_expr,
+            } => {
                 updates.push(("successful_requests", 1));
                 updates.push(("total_types_analyzed", types_count as i64));
                 bump_target = target.and_then(sanitize_target);
@@ -289,7 +299,10 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(1100));
         let _s2 = Stats::new(db.clone());
         let first2 = _s2.snapshot(0, 0, 0).data.first_seen_unix;
-        assert_eq!(first1, first2, "first_seen should not advance across restarts");
+        assert_eq!(
+            first1, first2,
+            "first_seen should not advance across restarts"
+        );
     }
 
     #[test]
@@ -315,7 +328,9 @@ mod tests {
     fn failure_paths_increment_specific_buckets() {
         let stats = Stats::new(open_in_memory());
         stats.record(Outcome::Timeout { is_type_expr: true });
-        stats.record(Outcome::Forbidden { is_type_expr: false });
+        stats.record(Outcome::Forbidden {
+            is_type_expr: false,
+        });
         let snap = stats.snapshot(0, 0, 0);
         assert_eq!(snap.data.failed_requests, 2);
         assert_eq!(snap.data.timeouts, 1);
@@ -352,6 +367,11 @@ mod tests {
         assert_eq!(snap.data.by_target.len(), MAX_TARGETS);
         // First MAX_TARGETS targets won; later ones were dropped.
         assert!(snap.data.by_target.contains_key("t0000"));
-        assert!(!snap.data.by_target.contains_key(&format!("t{:04}", MAX_TARGETS + 4)));
+        assert!(
+            !snap
+                .data
+                .by_target
+                .contains_key(&format!("t{:04}", MAX_TARGETS + 4))
+        );
     }
 }

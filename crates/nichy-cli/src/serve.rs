@@ -1,25 +1,9 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
-use nichy::TypeLayout;
-
-#[derive(Deserialize)]
-struct Request {
-    kind: String,
-    input: String,
-    #[serde(default)]
-    target: Option<String>,
-}
-
-#[derive(Serialize)]
-struct Response {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    layouts: Option<Vec<TypeLayout>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
+use nichy::{InfraReason, JobKind, WorkerRequest, WorkerResponse};
 
 #[derive(Serialize)]
 struct Ready {
@@ -28,8 +12,6 @@ struct Ready {
 }
 
 pub fn run() -> ! {
-    // Announce readiness so the parent knows the worker is up before the
-    // first real request lands.
     let ready = serde_json::to_string(&Ready {
         ready: true,
         pid: std::process::id(),
@@ -64,47 +46,66 @@ pub fn run() -> ! {
     }
 }
 
-fn handle_one(line: &str) -> Response {
-    let req: Request = match serde_json::from_str::<Request>(line) {
+fn handle_one(line: &str) -> WorkerResponse {
+    let req: WorkerRequest<'_> = match serde_json::from_str(line) {
         Ok(r) => r,
         Err(e) => {
-            return Response {
-                layouts: None,
-                error: Some(format!("bad request: {e}")),
+            return WorkerResponse::UserError {
+                message: format!("bad request: {e}"),
             };
         }
     };
 
     let target = req.target.as_deref();
 
-    let (result, captured) = capture_stderr(|| match req.kind.as_str() {
-        "type" => nichy_rustc::analyze_type_expr(&req.input, None, target),
-        "snippet" => nichy_rustc::analyze_snippet(&req.input, None, target),
-        "file" => nichy_rustc::analyze_file(Path::new(&req.input), None, target),
-        other => Err(format!("unknown kind: {other}")),
+    let (result, captured) = capture_stderr(|| match req.kind {
+        JobKind::Type => nichy_rustc::analyze_type_expr(&req.input, None, target),
+        JobKind::Snippet => nichy_rustc::analyze_snippet(&req.input, None, target),
+        JobKind::File => nichy_rustc::analyze_file(Path::new(req.input.as_ref()), None, target),
     });
 
-    match result {
-        Ok(layouts) if !layouts.is_empty() => Response {
-            layouts: Some(layouts),
-            error: None,
-        },
-        Ok(_) => Response {
-            layouts: None,
-            error: Some(if captured.trim().is_empty() {
-                "no types analyzed".into()
-            } else {
-                captured
-            }),
-        },
-        Err(e) => Response {
-            layouts: None,
-            error: Some(if captured.trim().is_empty() {
-                e
-            } else {
-                captured
-            }),
-        },
+    let fallback = match result {
+        Ok(layouts) if !layouts.is_empty() => return WorkerResponse::Ok { layouts },
+        Ok(_) => "no types analyzed".to_string(),
+        Err(e) => e,
+    };
+    let message = if captured.trim().is_empty() {
+        fallback
+    } else {
+        captured
+    };
+    classify(message)
+}
+
+// Substrings that fingerprint a poisoned worker rather than bad user
+// input. Each maps to the reason tag the pool sees on the wire.
+const INFRA_PATTERNS: &[(&str, InfraReason)] = &[
+    ("only metadata stub found for", InfraReason::MetadataStub),
+    (
+        "failed to mmap rmeta metadata",
+        InfraReason::RmetaMmapFailed,
+    ),
+    ("found invalid metadata files", InfraReason::InvalidMetadata),
+    ("E0786", InfraReason::InvalidMetadata),
+    ("can't find crate for `std`", InfraReason::MissingStd),
+    ("can't find crate for `core`", InfraReason::MissingCore),
+    ("can't find crate for `alloc`", InfraReason::MissingAlloc),
+    ("the compiler unexpectedly panicked", InfraReason::Ice),
+    ("internal compiler error:", InfraReason::Ice),
+    ("'rustc' panicked at", InfraReason::Ice),
+];
+
+fn classify_infra(text: &str) -> Option<InfraReason> {
+    INFRA_PATTERNS
+        .iter()
+        .find(|(pat, _)| text.contains(pat))
+        .map(|(_, reason)| *reason)
+}
+
+fn classify(message: String) -> WorkerResponse {
+    match classify_infra(&message) {
+        Some(reason) => WorkerResponse::InfraError { message, reason },
+        None => WorkerResponse::UserError { message },
     }
 }
 
@@ -163,4 +164,65 @@ fn capture_stderr<R>(f: impl FnOnce() -> R) -> (R, String) {
 #[cfg(not(unix))]
 fn capture_stderr<R>(f: impl FnOnce() -> R) -> (R, String) {
     (f(), String::new())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn classify_metadata_stub_is_infra() {
+        let s = "error: only metadata stub found for `rlib` dependency `core` please provide path to the corresponding .rmeta file";
+        assert_eq!(classify_infra(s), Some(InfraReason::MetadataStub));
+    }
+
+    #[test]
+    fn classify_missing_std_is_infra() {
+        let s = "error[E0463]: can't find crate for `std`";
+        assert_eq!(classify_infra(s), Some(InfraReason::MissingStd));
+    }
+
+    #[test]
+    fn classify_rmeta_mmap_is_infra() {
+        let s = "error: failed to mmap rmeta metadata: '/path/libstd.rmeta'";
+        assert_eq!(classify_infra(s), Some(InfraReason::RmetaMmapFailed));
+    }
+
+    #[test]
+    fn classify_e0786_is_infra() {
+        let s = "error[E0786]: found invalid metadata files for crate `std`";
+        assert_eq!(classify_infra(s), Some(InfraReason::InvalidMetadata));
+    }
+
+    #[test]
+    fn classify_ice_is_infra() {
+        let s = "error: internal compiler error: query stack is empty";
+        assert_eq!(classify_infra(s), Some(InfraReason::Ice));
+    }
+
+    #[test]
+    fn classify_user_syntax_error_is_not_infra() {
+        let s = "error: expected one of `,`, `:`, or `}`, found `;`";
+        assert_eq!(classify_infra(s), None);
+    }
+
+    #[test]
+    fn classify_unknown_ident_is_not_infra() {
+        let s = "error[E0412]: cannot find type `NotAType` in this scope";
+        assert_eq!(classify_infra(s), None);
+    }
+
+    #[test]
+    fn classify_helper_wraps_into_response() {
+        match classify("error: only metadata stub found for blah".into()) {
+            WorkerResponse::InfraError { reason, .. } => {
+                assert_eq!(reason, InfraReason::MetadataStub);
+            }
+            _ => panic!("expected InfraError"),
+        }
+        match classify("error: expected `;`".into()) {
+            WorkerResponse::UserError { .. } => {}
+            _ => panic!("expected UserError"),
+        }
+    }
 }

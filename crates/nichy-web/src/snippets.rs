@@ -100,11 +100,7 @@ impl SnippetStore {
 }
 
 pub fn is_valid_id(id: &str) -> bool {
-    !id.is_empty()
-        && id.len() <= 52
-        && id
-            .bytes()
-            .all(|b| matches!(b, b'a'..=b'z' | b'2'..=b'7'))
+    !id.is_empty() && id.len() <= 52 && id.bytes().all(|b| matches!(b, b'a'..=b'z' | b'2'..=b'7'))
 }
 
 #[cfg(test)]
@@ -170,7 +166,10 @@ mod tests {
             .expect("inject collision row");
         }
         let id = store.put(false, "real content", "").expect("put");
-        assert!(id.len() > ID_MIN_LEN, "should grow past collision; got id {id}");
+        assert!(
+            id.len() > ID_MIN_LEN,
+            "should grow past collision; got id {id}"
+        );
         assert!(
             real_hash.starts_with(&id),
             "grown id must be a prefix of the real hash: {id} vs {real_hash}",

@@ -1134,14 +1134,14 @@ dependencies = [
 
 [[package]]
 name = "nichy"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "nichy-cli"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "libc",
  "nichy",
@@ -1153,7 +1153,7 @@ dependencies = [
 
 [[package]]
 name = "nichy-rustc"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "nichy",
  "rustc_abi",
@@ -1168,7 +1168,7 @@ dependencies = [
 
 [[package]]
 name = "nichy-web"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "axum",
  "libc",

@@ -1,6 +1,6 @@
 [package]
 name = "nichy"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 description = "Rust type memory layout and niche optimization types"
 license = "MIT"

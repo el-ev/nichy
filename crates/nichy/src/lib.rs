@@ -245,6 +245,82 @@ pub struct VariantLayout {
     pub discr_value: Option<u128>,
 }
 
+// ── nichy --serve wire protocol ────────────────────────────
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum JobKind {
+    Type,
+    Snippet,
+    File,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum InfraReason {
+    MetadataStub,
+    RmetaMmapFailed,
+    InvalidMetadata,
+    MissingStd,
+    MissingCore,
+    MissingAlloc,
+    Ice,
+}
+
+impl InfraReason {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::MetadataStub => "metadata-stub",
+            Self::RmetaMmapFailed => "rmeta-mmap-failed",
+            Self::InvalidMetadata => "invalid-metadata",
+            Self::MissingStd => "missing-std",
+            Self::MissingCore => "missing-core",
+            Self::MissingAlloc => "missing-alloc",
+            Self::Ice => "ice",
+        }
+    }
+}
+
+impl std::fmt::Display for InfraReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct WorkerRequest<'a> {
+    pub kind: JobKind,
+    #[serde(borrow)]
+    pub input: std::borrow::Cow<'a, str>,
+    #[serde(default, borrow, skip_serializing_if = "Option::is_none")]
+    pub target: Option<std::borrow::Cow<'a, str>>,
+}
+
+impl<'a> WorkerRequest<'a> {
+    pub fn new(kind: JobKind, input: &'a str, target: Option<&'a str>) -> Self {
+        Self {
+            kind,
+            input: std::borrow::Cow::Borrowed(input),
+            target: target.map(std::borrow::Cow::Borrowed),
+        }
+    }
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum WorkerResponse {
+    Ok {
+        layouts: Vec<TypeLayout>,
+    },
+    UserError {
+        message: String,
+    },
+    InfraError {
+        message: String,
+        reason: InfraReason,
+    },
+}
+
 #[cfg(test)]
 mod tests {
     use super::{count_inner_attr_lines, split_inner_attrs};

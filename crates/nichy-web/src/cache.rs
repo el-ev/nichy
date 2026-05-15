@@ -39,10 +39,10 @@ impl AnalysisCache {
                 "UPDATE cache SET last_used = ?2 WHERE key_hash = ?1 RETURNING types_json",
             )
             .expect("prepare cache get");
-        let row: Option<Vec<u8>> = match stmt.query_row(
-            params![&key.hash, unix_now() as i64],
-            |r| r.get::<_, Vec<u8>>(0),
-        ) {
+        let row: Option<Vec<u8>> = match stmt
+            .query_row(params![&key.hash, unix_now() as i64], |r| {
+                r.get::<_, Vec<u8>>(0)
+            }) {
             Ok(v) => Some(v),
             Err(rusqlite::Error::QueryReturnedNoRows) => None,
             Err(e) => {

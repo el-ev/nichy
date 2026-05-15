@@ -42,7 +42,6 @@ const FORBIDDEN_MACROS: &[&str] = &[
     "concat_idents",
 ];
 
-
 fn reject_forbidden_macros(code: &str) -> Result<(), String> {
     let tokens: TokenStream = code
         .parse()
@@ -336,9 +335,7 @@ async fn analyze(State(state): State<Arc<AppState>>, Json(req): Json<AnalyzeRequ
         Err((status, error)) => {
             let outcome = match status {
                 StatusCode::GATEWAY_TIMEOUT => stats::Outcome::Timeout { is_type_expr },
-                StatusCode::UNPROCESSABLE_ENTITY => {
-                    stats::Outcome::AnalysisError { is_type_expr }
-                }
+                StatusCode::UNPROCESSABLE_ENTITY => stats::Outcome::AnalysisError { is_type_expr },
                 _ => stats::Outcome::InternalError { is_type_expr },
             };
             state.stats.record(outcome);
@@ -347,10 +344,7 @@ async fn analyze(State(state): State<Arc<AppState>>, Json(req): Json<AnalyzeRequ
     }
 }
 
-async fn shorten(
-    State(state): State<Arc<AppState>>,
-    Json(req): Json<ShortenRequest>,
-) -> Response {
+async fn shorten(State(state): State<Arc<AppState>>, Json(req): Json<ShortenRequest>) -> Response {
     let (is_type_expr, content) = match (req.type_expr, req.code) {
         (Some(t), _) => (true, t),
         (_, Some(c)) => (false, c),
@@ -402,10 +396,7 @@ async fn shorten(
     }
 }
 
-async fn snippet(
-    State(state): State<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Response {
+async fn snippet(State(state): State<Arc<AppState>>, Path(id): Path<String>) -> Response {
     if !snippets::is_valid_id(&id) {
         return StatusCode::NOT_FOUND.into_response();
     }

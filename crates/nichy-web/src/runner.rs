@@ -173,8 +173,8 @@ pub fn clean_rustc_error(raw: &str, inner_attr_lines: usize) -> String {
             continue;
         }
 
-        if let Some((num_str, rest)) = parse_source_line(line) {
-            if let Ok(num) = num_str.parse::<usize>() {
+        if let Some((num_str, rest)) = parse_source_line(line)
+            && let Ok(num) = num_str.parse::<usize>() {
                 let adj = adjust_line_num(num, preamble_lines, inner_attr_lines);
                 let adj_str = adj.to_string();
                 max_num_width = max_num_width.max(adj_str.len());
@@ -184,7 +184,6 @@ pub fn clean_rustc_error(raw: &str, inner_attr_lines: usize) -> String {
                 });
                 continue;
             }
-        }
 
         if let Some(rest) = parse_gutter_line(line) {
             snippets.push(Snippet::Gutter {
