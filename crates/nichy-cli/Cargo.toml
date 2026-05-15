@@ -11,6 +11,11 @@ publish = false
 name = "nichy"
 path = "src/main.rs"
 
+[features]
+default = []
+# Lock the binary to its bundled sysroot. Used by Dockerfile.publish.
+published = []
+
 [dependencies]
 nichy = { path = "../nichy" }
 nichy-rustc = { path = "../nichy-rustc" }

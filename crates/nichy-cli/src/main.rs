@@ -19,6 +19,7 @@ fn main() {
 
     let mut color = false;
     let mut input_source = None;
+    #[cfg_attr(feature = "published", allow(unused_mut, unused_variables))]
     let mut sysroot: Option<String> = None;
     let mut target: Option<String> = None;
     let mut json_output = false;
@@ -65,12 +66,20 @@ fn main() {
                 return;
             }
             "--sysroot" => {
-                i += 1;
-                if i < args.len() {
-                    sysroot = Some(args[i].clone());
-                } else {
-                    eprintln!("error: --sysroot requires a path");
+                #[cfg(feature = "published")]
+                {
+                    eprintln!("error: --sysroot is not supported in this build");
                     std::process::exit(1);
+                }
+                #[cfg(not(feature = "published"))]
+                {
+                    i += 1;
+                    if i < args.len() {
+                        sysroot = Some(args[i].clone());
+                    } else {
+                        eprintln!("error: --sysroot requires a path");
+                        std::process::exit(1);
+                    }
                 }
             }
             "--target" => {
@@ -118,6 +127,24 @@ fn main() {
         });
     }
 
+    #[cfg(not(feature = "published"))]
+    let sysroot = sysroot.or_else(|| {
+        if std::env::var_os("NICHY_SYSROOT").is_some() {
+            None
+        } else {
+            default_sysroot().map(|p| p.display().to_string())
+        }
+    });
+    #[cfg(feature = "published")]
+    let sysroot = Some(
+        default_sysroot()
+            .unwrap_or_else(|| {
+                eprintln!("error: bundled sysroot not found next to the nichy binary");
+                std::process::exit(1);
+            })
+            .display()
+            .to_string(),
+    );
     let sysroot_path = sysroot.as_deref().map(Path::new);
     let target_triple = target.as_deref();
 
@@ -174,6 +201,16 @@ fn main() {
     }
 }
 
+fn default_sysroot() -> Option<std::path::PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let candidate = exe.parent()?.parent()?.join("sysroot");
+    if candidate.join("lib/rustlib").is_dir() {
+        Some(candidate)
+    } else {
+        None
+    }
+}
+
 fn has_explicit_color(args: &[String]) -> bool {
     args.iter().any(|a| a == "--color" || a == "--no-color")
 }
@@ -186,6 +223,14 @@ fn atty_stdin() -> bool {
 }
 
 fn print_help() {
+    #[cfg(not(feature = "published"))]
+    let sysroot_line = "    --sysroot PATH          Sysroot for rustc (default: $NICHY_SYSROOT)\n";
+    #[cfg(feature = "published")]
+    let sysroot_line = "";
+    #[cfg(not(feature = "published"))]
+    let env_section = "\n\nENVIRONMENT:\n    NICHY_SYSROOT    Sysroot path (stage1 compiler)";
+    #[cfg(feature = "published")]
+    let env_section = "";
     eprintln!(
         "\
 nichy — Rust type layout & niche optimization visualizer
@@ -199,15 +244,11 @@ USAGE:
 OPTIONS:
     -t, --type TYPE         Analyze a single type expression
     --target TRIPLE         Target triple (e.g. aarch64-unknown-linux-gnu)
-    --sysroot PATH          Sysroot for rustc (default: $NICHY_SYSROOT)
-    --color / --no-color    Force color on/off
+{sysroot_line}    --color / --no-color    Force color on/off
     --no-footer             Hide version footer
     --timeout SECS          Abort if analysis exceeds SECS wall-clock seconds
     -V, --version           Print version info
-    -h, --help              Show this help
-
-ENVIRONMENT:
-    NICHY_SYSROOT    Sysroot path (stage1 compiler)"
+    -h, --help              Show this help{env_section}"
     );
 }
 
