@@ -116,7 +116,10 @@ fn footer_html(cfg: &SiteConfig) -> String {
     if let Some(author) = &cfg.author {
         let name = html_escape(author);
         let rendered = match &cfg.author_url {
-            Some(url) => format!("<a href=\"{}\">{name}</a>", html_escape(url)),
+            Some(url) => format!(
+                "<a class=\"footer-author\" href=\"{}\">{name}</a>",
+                html_escape(url)
+            ),
             None => name,
         };
         parts.push(format!("by {rendered}"));
