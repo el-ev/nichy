@@ -269,6 +269,7 @@ async function doAnalyze(body) {
   $('#filterRow').style.display = 'none';
   $('#shareBtn').hidden = true;
   lastAnalyzed = null;
+  if (location.pathname.startsWith('/s/')) history.replaceState(null, '', '/');
   document.querySelectorAll('button:not(.theme-toggle)').forEach(b=>b.disabled=true);
   try {
     const r = await fetch('/api/analyze', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
