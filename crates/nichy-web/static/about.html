@@ -345,7 +345,8 @@ offset  size  purpose
     Struct padding exists for alignment but is not tracked as niche space.
     Even when a struct has trailing padding that could physically hold a
     discriminant, the compiler doesn't repurpose it
-    (<a href="https://github.com/rust-lang/rust/issues/109555">#109555</a>).
+    (<a href="https://github.com/rust-lang/rust/issues/70230">#70230</a>, 
+    <a href="https://github.com/rust-lang/rust/issues/109555">#109555</a>).
     Niches come from <strong>type-level value constraints</strong> (like
     "references are never null") rather than from incidental unused bytes in
     the memory layout.
