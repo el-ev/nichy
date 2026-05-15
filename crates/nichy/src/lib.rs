@@ -75,6 +75,21 @@ use std::ffi::{CStr, CString, OsStr, OsString};\n\
 use std::path::{Path, PathBuf};\n\
 \n";
 
+pub const PREAMBLE_LINES: usize = count_newlines(PREAMBLE);
+
+const fn count_newlines(s: &str) -> usize {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    let mut n = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'\n' {
+            n += 1;
+        }
+        i += 1;
+    }
+    n
+}
+
 // Splits leading inner attributes (`#![...]`) from the rest of a source file
 // so we can stitch them above an injected preamble. Inner attributes must
 // precede all items, so anything after the first real item stays in `body`.

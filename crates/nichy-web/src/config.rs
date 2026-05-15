@@ -14,6 +14,18 @@ pub struct SiteConfig {
     pub timeout_secs: f64,
     #[serde(default = "default_db_path")]
     pub db_path: String,
+    /// Number of persistent `nichy --serve` workers. 0 disables the pool and
+    /// falls back to spawning the CLI per request.
+    #[serde(default = "default_service_workers")]
+    pub service_workers: usize,
+    /// Recycle (kill+respawn) each worker after it has handled this many
+    /// successful jobs. Bounds the unbounded growth of rustc arenas across
+    /// repeated in-process compilations.
+    #[serde(default = "default_max_jobs_per_worker")]
+    pub max_jobs_per_worker: usize,
+    /// Maximum number of analysis results kept in the LRU cache.
+    #[serde(default = "default_cache_capacity")]
+    pub cache_capacity: usize,
 }
 
 impl Default for SiteConfig {
@@ -25,6 +37,9 @@ impl Default for SiteConfig {
             listen: default_listen(),
             timeout_secs: default_timeout_secs(),
             db_path: default_db_path(),
+            service_workers: default_service_workers(),
+            max_jobs_per_worker: default_max_jobs_per_worker(),
+            cache_capacity: default_cache_capacity(),
         }
     }
 }
@@ -39,6 +54,18 @@ fn default_timeout_secs() -> f64 {
 
 fn default_db_path() -> String {
     "nichy-web.db".into()
+}
+
+fn default_service_workers() -> usize {
+    4
+}
+
+fn default_max_jobs_per_worker() -> usize {
+    256
+}
+
+fn default_cache_capacity() -> usize {
+    256
 }
 
 pub fn load() -> SiteConfig {

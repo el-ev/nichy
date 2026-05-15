@@ -20,6 +20,7 @@ mod cache;
 mod config;
 mod db;
 mod hash;
+mod pool;
 mod runner;
 mod snippets;
 mod stats;
@@ -28,8 +29,6 @@ use cache::{AnalysisCache, CacheKey};
 use config::SiteConfig;
 use snippets::SnippetStore;
 use stats::Stats;
-
-const CACHE_CAPACITY: usize = 256;
 
 const FORBIDDEN_MACROS: &[&str] = &[
     "include",
@@ -229,7 +228,6 @@ fn nichy_bin() -> &'static str {
 
 async fn analyze(State(state): State<Arc<AppState>>, Json(req): Json<AnalyzeRequest>) -> Response {
     let is_type_expr = req.type_expr.is_some();
-    let has_input = is_type_expr || req.code.is_some();
 
     let target = match normalize_target(req.target.as_deref()) {
         Ok(t) => t,
@@ -278,39 +276,46 @@ async fn analyze(State(state): State<Arc<AppState>>, Json(req): Json<AnalyzeRequ
         state.stats.record_cache_miss();
     }
 
-    let inner_attr_lines = code
-        .as_deref()
-        .map(nichy::count_inner_attr_lines)
-        .unwrap_or(0);
-
-    let permit = state
-        .run_semaphore
-        .acquire()
-        .await
-        .expect("run_semaphore should not be closed");
-
-    let bin = nichy_bin();
-    let result = match (&code, &type_expr) {
-        (_, Some(expr)) => {
-            runner::run_nichy(bin, &["-t", expr], None, Some(target), state.timeout_secs, 0).await
-        }
-        (Some(c), _) => {
-            runner::run_nichy(
-                bin,
-                &[],
-                Some(c),
-                Some(target),
-                state.timeout_secs,
-                inner_attr_lines,
+    let job = match (code.as_deref(), type_expr.as_deref()) {
+        (_, Some(expr)) => runner::Job::TypeExpr(expr),
+        (Some(c), _) => runner::Job::Snippet(c),
+        _ => {
+            state.stats.record(stats::Outcome::BadRequest);
+            return (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorResponse {
+                    error: "request must include `code` or `type`".into(),
+                }),
             )
-            .await
+                .into_response();
         }
-        _ => Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "request must include `code` or `type`".into(),
-        )),
     };
-    drop(permit);
+
+    let inner_attr_lines = match job {
+        runner::Job::Snippet(c) => nichy::count_inner_attr_lines(c),
+        runner::Job::TypeExpr(_) => 0,
+    };
+
+    let result = match &state.pool {
+        Some(p) => p.submit(job, Some(target), state.timeout_secs).await,
+        None => {
+            let sem = state
+                .run_semaphore
+                .as_ref()
+                .expect("run_semaphore must be set when pool is absent");
+            let _permit = sem.acquire().await.expect("run_semaphore closed");
+            runner::run_nichy(nichy_bin(), job, Some(target), state.timeout_secs).await
+        }
+    };
+
+    let result = result.map_err(|(status, raw)| {
+        let msg = if status == StatusCode::UNPROCESSABLE_ENTITY {
+            runner::clean_rustc_error(&raw, inner_attr_lines)
+        } else {
+            raw
+        };
+        (status, msg)
+    });
 
     match result {
         Ok(types) => {
@@ -329,10 +334,9 @@ async fn analyze(State(state): State<Arc<AppState>>, Json(req): Json<AnalyzeRequ
             .into_response()
         }
         Err((status, error)) => {
-            let outcome = match (status, has_input) {
-                (StatusCode::GATEWAY_TIMEOUT, _) => stats::Outcome::Timeout { is_type_expr },
-                (StatusCode::UNPROCESSABLE_ENTITY, false) => stats::Outcome::BadRequest,
-                (StatusCode::UNPROCESSABLE_ENTITY, true) => {
+            let outcome = match status {
+                StatusCode::GATEWAY_TIMEOUT => stats::Outcome::Timeout { is_type_expr },
+                StatusCode::UNPROCESSABLE_ENTITY => {
                     stats::Outcome::AnalysisError { is_type_expr }
                 }
                 _ => stats::Outcome::InternalError { is_type_expr },
@@ -451,7 +455,8 @@ struct AppState {
     stats: Arc<Stats>,
     cache: Arc<AnalysisCache>,
     snippets: Arc<SnippetStore>,
-    run_semaphore: Semaphore,
+    run_semaphore: Option<Semaphore>,
+    pool: Option<Arc<pool::WorkerPool>>,
 }
 
 macro_rules! static_asset {
@@ -490,12 +495,26 @@ async fn main() {
     eprintln!("nichy-web db: {}", cfg.db_path);
 
     let stats = Stats::new(db.clone());
-    let cache = AnalysisCache::new(db.clone(), CACHE_CAPACITY);
+    let cache = AnalysisCache::new(db.clone(), cfg.cache_capacity);
     let snippets = Arc::new(SnippetStore::new(db.clone()));
 
-    let cpus = std::thread::available_parallelism()
-        .map(NonZeroUsize::get)
-        .unwrap_or(2);
+    // When the pool is enabled, concurrency is gated inside the pool itself.
+    // run_semaphore exists only for the spawn-per-request fallback path.
+    let (pool, run_semaphore) = if cfg.service_workers == 0 {
+        eprintln!("worker pool disabled (service_workers=0); using spawn-per-request");
+        let cpus = std::thread::available_parallelism()
+            .map(NonZeroUsize::get)
+            .unwrap_or(2);
+        (None, Some(Semaphore::new(cpus)))
+    } else {
+        let pool = pool::WorkerPool::new(pool::PoolConfig {
+            bin: PathBuf::from(nichy_bin()),
+            workers: cfg.service_workers,
+            max_jobs_per_worker: cfg.max_jobs_per_worker,
+        })
+        .await;
+        (Some(pool), None)
+    };
 
     let state = Arc::new(AppState {
         index_html,
@@ -505,7 +524,8 @@ async fn main() {
         stats: stats.clone(),
         cache: cache.clone(),
         snippets: snippets.clone(),
-        run_semaphore: Semaphore::new(cpus),
+        run_semaphore,
+        pool,
     });
 
     let app = Router::new()

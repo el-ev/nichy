@@ -3,6 +3,7 @@
 extern crate rustc_driver;
 
 mod render;
+mod serve;
 
 use std::io::{IsTerminal, Read};
 use std::path::Path;
@@ -31,6 +32,7 @@ fn main() {
             "--color" => color = true,
             "--json" => json_output = true,
             "--no-footer" => show_footer = false,
+            "--serve" => serve::run(),
             "--timeout" => {
                 i += 1;
                 if i < args.len() {

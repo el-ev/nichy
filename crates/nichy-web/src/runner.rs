@@ -13,11 +13,14 @@ use nichy::TypeLayout;
 // Tuning notes:
 // - AS (virtual memory): the request body is capped at 64 KiB, so even
 //   pathological monomorphization stays well under 2 GiB.
-// - CPU: backstop for a hung rustc the wall-clock timeout fails to kill.
+// - CPU: per-process cumulative, backstop for a hung rustc the wall-clock
+//   timeout fails to kill. Only applied to one-shot subprocesses; long-lived
+//   pool workers rely on the per-job tokio timeout instead, since cumulative
+//   CPU would otherwise SIGXCPU the worker after a handful of jobs.
 // - FSIZE: rustc shouldn't write large files during analysis-only runs.
 // - CORE: prevent core dumps from leaking process memory to disk.
 #[cfg(unix)]
-const SUBPROCESS_RLIMITS: &[(libc::__rlimit_resource_t, libc::rlim_t)] = &[
+const RLIMITS_ONESHOT: &[(libc::__rlimit_resource_t, libc::rlim_t)] = &[
     (libc::RLIMIT_AS, 2 * 1024 * 1024 * 1024),
     (libc::RLIMIT_CPU, 30),
     (libc::RLIMIT_FSIZE, 64 * 1024 * 1024),
@@ -25,8 +28,15 @@ const SUBPROCESS_RLIMITS: &[(libc::__rlimit_resource_t, libc::rlim_t)] = &[
 ];
 
 #[cfg(unix)]
-fn apply_subprocess_sandbox() -> std::io::Result<()> {
-    for &(res, val) in SUBPROCESS_RLIMITS {
+const RLIMITS_PERSISTENT: &[(libc::__rlimit_resource_t, libc::rlim_t)] = &[
+    (libc::RLIMIT_AS, 2 * 1024 * 1024 * 1024),
+    (libc::RLIMIT_FSIZE, 64 * 1024 * 1024),
+    (libc::RLIMIT_CORE, 0),
+];
+
+#[cfg(unix)]
+fn apply_rlimits(set: &[(libc::__rlimit_resource_t, libc::rlim_t)]) -> std::io::Result<()> {
+    for &(res, val) in set {
         let rlim = libc::rlimit {
             rlim_cur: val,
             rlim_max: val,
@@ -40,17 +50,38 @@ fn apply_subprocess_sandbox() -> std::io::Result<()> {
     Ok(())
 }
 
+#[cfg(unix)]
+fn apply_subprocess_sandbox() -> std::io::Result<()> {
+    apply_rlimits(RLIMITS_ONESHOT)
+}
+
+#[cfg(unix)]
+pub(crate) fn apply_persistent_sandbox() -> std::io::Result<()> {
+    apply_rlimits(RLIMITS_PERSISTENT)
+}
+
+#[derive(Copy, Clone)]
+pub enum Job<'a> {
+    TypeExpr(&'a str),
+    Snippet(&'a str),
+}
+
 pub async fn run_nichy(
     bin: &str,
-    extra_args: &[&str],
-    stdin_data: Option<&str>,
+    job: Job<'_>,
     target: Option<&str>,
     timeout_secs: f64,
-    inner_attr_lines: usize,
 ) -> Result<Vec<TypeLayout>, (StatusCode, String)> {
     let timeout_str = format!("{timeout_secs}");
     let mut args = vec!["--json", "--no-color", "--timeout", &timeout_str];
-    args.extend_from_slice(extra_args);
+    let stdin_data = match job {
+        Job::TypeExpr(expr) => {
+            args.push("-t");
+            args.push(expr);
+            None
+        }
+        Job::Snippet(code) => Some(code),
+    };
     if let Some(triple) = target {
         args.push("--target");
         args.push(triple);
@@ -104,19 +135,9 @@ pub async fn run_nichy(
         })?
         .map_err(|e| (StatusCode::BAD_GATEWAY, format!("wait: {e}")))?;
 
-    parse_output(&output, inner_attr_lines)
-}
-
-fn parse_output(
-    output: &std::process::Output,
-    inner_attr_lines: usize,
-) -> Result<Vec<TypeLayout>, (StatusCode, String)> {
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err((
-            StatusCode::UNPROCESSABLE_ENTITY,
-            clean_rustc_error(&stderr, inner_attr_lines),
-        ));
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, stderr));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -131,8 +152,8 @@ enum Snippet {
     Gutter { rest: String },
 }
 
-fn clean_rustc_error(raw: &str, inner_attr_lines: usize) -> String {
-    let preamble_lines = nichy::PREAMBLE.lines().count();
+pub fn clean_rustc_error(raw: &str, inner_attr_lines: usize) -> String {
+    let preamble_lines = nichy::PREAMBLE_LINES;
 
     let mut snippets: Vec<Snippet> = Vec::new();
     let mut max_num_width = 0usize;

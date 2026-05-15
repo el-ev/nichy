@@ -1,6 +1,6 @@
 [package]
 name = "nichy-cli"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 description = "CLI for nichy"
 license = "MIT"
@@ -14,7 +14,11 @@ path = "src/main.rs"
 [dependencies]
 nichy = { path = "../nichy" }
 nichy-rustc = { path = "../nichy-rustc" }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [target.'cfg(rust_analyzer)'.dependencies]
 rustc_driver = { path = "../../rust/compiler/rustc_driver" }
